@@ -1,5 +1,5 @@
-import { sha256 } from '@noble/hashes/sha256';
-import { bytesToHex, randomBytes } from '@noble/hashes/utils';
+import { sha256 } from '@noble/hashes/sha2.js';
+import { bytesToHex, randomBytes } from '@noble/hashes/utils.js';
 
 export function generateUUID(): string {
   const buf = randomBytes(16);
