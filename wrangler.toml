@@ -1,0 +1,47 @@
+name = "serverless-yggdrasil"
+main = "src/index.ts"
+compatibility_date = "2025-01-29"
+compatibility_flags = ["nodejs_compat"]
+
+# D1 Database
+[[d1_databases]]
+binding = "DB"
+database_name = "yggdrasil-db"
+database_id = "local-yggdrasil-db"
+
+# R2 Bucket for skins & capes
+[[r2_buckets]]
+binding = "SKINS"
+bucket_name = "yggdrasil-skins"
+
+# KV Namespace for sessions & rate limiting
+[[kv_namespaces]]
+binding = "KV"
+id = "local-yggdrasil-kv"
+
+# Email Workers - receive verification emails
+[email]
+enabled = true
+
+# Custom domain
+routes = [
+  { pattern = "skin.jlucraft.com", custom_domain = true }
+]
+
+# Static assets (frontend SPA)
+[assets]
+directory = "public"
+not_found_handling = "single-page-application"
+run_worker_first = true
+
+# Environment variables (override in dashboard for prod)
+[vars]
+APP_NAME = "JLUCraft Skin Station"
+MUA_UNION_ENDPOINT = "https://skin.mualliance.ltd/api/union"
+MICROSOFT_CLIENT_ID = ""
+EMAIL_VERIFICATION_RECIPIENT = "verify@skin.jlucraft.com"
+EMAIL_VERIFICATION_TOKEN_BYTES = "16"
+EMAIL_VERIFICATION_TTL_SECONDS = "86400"
+
+# Secrets (set via `wrangler secret put`):
+# JWT_SECRET, MICROSOFT_CLIENT_SECRET
