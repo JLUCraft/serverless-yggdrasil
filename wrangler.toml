@@ -3,13 +3,13 @@ main = "src/index.ts"
 compatibility_date = "2025-01-29"
 compatibility_flags = ["nodejs_compat"]
 
-# D1 Database
+
 [[d1_databases]]
 binding = "DB"
 database_name = "yggdrasil-db"
-database_id = "local-yggdrasil-db"
+database_id = "c3e0fab2-4b95-4758-a35c-b67828d1abfc"
 
-# R2 Bucket for skins & capes
+
 [[r2_buckets]]
 binding = "SKINS"
 bucket_name = "yggdrasil-skins"
@@ -17,7 +17,7 @@ bucket_name = "yggdrasil-skins"
 # KV Namespace for sessions & rate limiting
 [[kv_namespaces]]
 binding = "KV"
-id = "local-yggdrasil-kv"
+id = "c16b789a65c04bd1baf4561a8ebdee64"
 
 # Email Workers - receive verification emails
 [email]
