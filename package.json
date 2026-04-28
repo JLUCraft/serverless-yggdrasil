@@ -1,0 +1,40 @@
+{
+  "name": "serverless-yggdrasil",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Cloudflare Workers based Blessing Skin + MUA Yggdrasil skin station with hierarchical identity",
+  "main": "src/worker/index.ts",
+  "scripts": {
+    "build": "bun run build:client && bun run build:worker",
+    "build:client": "tsc --noEmit -p tsconfig.client.json && vite build",
+    "build:worker": "tsc --noEmit -p tsconfig.worker.json",
+    "check": "bun run check:client && bun run check:worker",
+    "check:client": "tsc --noEmit -p tsconfig.client.json",
+    "check:worker": "tsc --noEmit -p tsconfig.worker.json",
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "preview": "vite preview",
+    "types": "wrangler types"
+  },
+  "dependencies": {
+    "@solidjs/router": "^0.16.1",
+    "@noble/ed25519": "^3.1.0",
+    "@noble/hashes": "^2.2.0",
+    "hono": "^4.12.15",
+    "skinview3d": "^3.4.1",
+    "solid-js": "^1.9.12",
+    "three": "^0.184.0"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20260426.1",
+    "@tailwindcss/vite": "^4.2.4",
+    "@types/node": "^25.6.0",
+    "daisyui": "^5.5.19",
+    "tailwindcss": "^4.2.4",
+    "typescript": "^6.0.3",
+    "vite": "^8.0.10",
+    "vite-plugin-solid": "^2.11.12",
+    "wrangler": "^4.86.0"
+  },
+  "packageManager": "bun@1.3.13"
+}

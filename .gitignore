@@ -1,0 +1,23 @@
+node_modules/
+package-lock.json
+bun.lock
+dist/
+dist-ssr/
+/public/
+*.local
+.dev.vars
+.wrangler/
+*.log
+*-mcp
+.claude
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?

@@ -1,0 +1,13 @@
+{
+  "appName": "JLUCraft Skin Station",
+  "shortName": "JLUCraft",
+  "siteDomain": "skin.jlucraft.com",
+  "allowedEmailDomains": ["jlu.edu.cn", "mails.jlu.edu.cn"],
+  "siteSubtitle": "吉林大学皮肤站",
+  "themeColor": "#10368A",
+  "logoUrl": "/logo.png",
+  "defaultSkinUrl": "/skin.png",
+  "emailWebmailUrl": "https://mails.jlu.edu.cn/",
+  "siteCode": "jlu",
+  "siteName": "吉林大学 Minecraft 同好会"
+}

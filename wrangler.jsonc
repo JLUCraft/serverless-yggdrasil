@@ -1,0 +1,67 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "skins",
+  "main": "src/worker/index.ts",
+  "compatibility_date": "2025-01-29",
+  "compatibility_flags": [
+    "nodejs_compat"
+  ],
+  "routes": [
+    {
+      "pattern": "skin.jlucraft.com",
+      "custom_domain": true
+    }
+  ],
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "yggdrasil-db",
+      "database_id": "c3e0fab2-4b95-4758-a35c-b67828d1abfc"
+    }
+  ],
+  "r2_buckets": [
+    {
+      "binding": "SKINS",
+      "bucket_name": "yggdrasil-skins"
+    }
+  ],
+  "kv_namespaces": [
+    {
+      "binding": "KV",
+      "id": "c16b789a65c04bd1baf4561a8ebdee64"
+    }
+  ],
+  "assets": {
+    "directory": "public",
+    "binding": "ASSETS",
+    "not_found_handling": "single-page-application",
+    "run_worker_first": true
+  },
+  "vars": {
+    "APP_NAME": "JLUCraft Skin Station",
+    "MUA_UNION_ENDPOINT": "https://skin.mualliance.ltd/api/union",
+    "MICROSOFT_CLIENT_ID": "",
+    "EMAIL_VERIFICATION_RECIPIENT": "verify@jlucraft.com",
+    "EMAIL_VERIFICATION_TOKEN_BYTES": "16",
+    "EMAIL_VERIFICATION_TTL_SECONDS": "86400"
+  },
+  // Required secrets:
+  // - JWT_SECRET
+  // Optional secret:
+  // - MICROSOFT_CLIENT_SECRET
+  "observability": {
+    "enabled": false,
+    "head_sampling_rate": 1,
+    "logs": {
+      "enabled": true,
+      "head_sampling_rate": 1,
+      "persist": true,
+      "invocation_logs": true
+    },
+    "traces": {
+      "enabled": false,
+      "persist": true,
+      "head_sampling_rate": 1
+    }
+  }
+}
