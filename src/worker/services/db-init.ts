@@ -164,6 +164,13 @@ const MIGRATIONS: Migration[] = [
       CREATE INDEX IF NOT EXISTS idx_auth_logs_created ON auth_logs(created_at);
     `,
   },
+  {
+    version: 3,
+    name: 'clear_plaintext_mua_api_key',
+    sql: `
+      UPDATE mua_config SET api_key = NULL WHERE api_key IS NOT NULL;
+    `,
+  },
 ];
 
 async function ensureMigrationsTable(db: D1Database): Promise<void> {

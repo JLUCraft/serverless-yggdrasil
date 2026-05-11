@@ -17,21 +17,12 @@ import { getUserByUsername, getProfileByName } from '../services/user';
 import { readJwtSecret } from '../services/security';
 import { verifyPassword } from '../utils/crypto';
 import { yggdrasilError, json, error } from '../utils/response';
+import { getBaseUrl, getClientIP } from '../utils/request';
 import siteConfig from '../../../site.config.json';
 import { getTextureSignPublicKey } from '../services/union';
 import { logAuthEvent } from '../services/auth-log';
 
 const app = new Hono<{ Bindings: Env }>();
-
-function getClientIP(c: { req: { header: (name: string) => string | undefined } }): string {
-  return c.req.header('CF-Connecting-IP') ?? c.req.header('X-Forwarded-For') ?? 'unknown';
-}
-
-function getBaseUrl(c: import('hono').Context<{ Bindings: Env }>): string {
-  const host = c.req.header('host');
-  const proto = c.req.header('x-forwarded-proto') ?? 'https';
-  return host ? `${proto}://${host}` : '';
-}
 
 // Metadata endpoint
 app.get('/', async (c) => {
@@ -67,15 +58,16 @@ app.post('/authserver/authenticate', async (c) => {
     return yggdrasilError('ForbiddenOperationException', 'Invalid credentials. Invalid username or password.');
   }
 
-  // Store token in KV for quick lookup
+  // Store token in KV for quick lookup using the real user.id
+  const { _userId, ...publicResult } = result;
   await storeAccessToken(c, result.accessToken, {
     uuid: result.selectedProfile?.id ?? '',
     name: result.selectedProfile?.name ?? '',
-    userId: 0, // Will be resolved on validate
+    userId: _userId,
   });
 
   await logAuthEvent(c.env.DB, { event_type: 'login_success', username: body.username, ip_address: ip, user_agent: userAgent, details: 'Yggdrasil authenticate' });
-  return json(result);
+  return json(publicResult);
 });
 
 // Authserver: Refresh
@@ -85,7 +77,22 @@ app.post('/authserver/refresh', async (c) => {
   if (!result) {
     return yggdrasilError('ForbiddenOperationException', 'Invalid token.');
   }
-  return json(result);
+
+  // Invalidate the old accessToken so it cannot be replayed
+  if (body.accessToken) {
+    await invalidateAccessToken(c, body.accessToken);
+  }
+
+  const { _userId, ...publicResult } = result;
+
+  // Store new accessToken in KV cache so validate/hasJoined succeed immediately
+  await storeAccessToken(c, result.accessToken, {
+    uuid: result.selectedProfile?.id ?? '',
+    name: result.selectedProfile?.name ?? '',
+    userId: _userId,
+  });
+
+  return json(publicResult);
 });
 
 // Authserver: Validate
@@ -272,7 +279,15 @@ app.get('/api/profiles/minecraft/:name', async (c) => {
     return error('Profile not found', 404);
   }
 
-  return json({ id: profile.id, name: profile.name, properties: profile.properties });
+  // Fetch club metadata from the user record.
+  const userProfile = await getProfileByName(c.env.DB, name);
+  const clubCode = userProfile?.club ?? null;
+
+  const result: Record<string, unknown> = { id: profile.id, name: profile.name, properties: profile.properties };
+  if (clubCode) {
+    result.club_code = clubCode;
+  }
+  return json(result);
 });
 
 // Standard Yggdrasil API: Profile by name (returns {id, name} or 204)

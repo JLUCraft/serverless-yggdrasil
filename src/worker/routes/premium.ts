@@ -5,14 +5,9 @@ import * as premiumService from '../services/premium';
 import * as userService from '../services/user';
 import { readJwtSecret } from '../services/security';
 import { success, error } from '../utils/response';
+import { getBaseUrl } from '../utils/request';
 
 const app = new Hono<{ Bindings: Env; Variables: Variables }>();
-
-function getBaseUrl(c: { req: { header: (name: string) => string | undefined } }): string {
-  const host = c.req.header('host');
-  const proto = c.req.header('x-forwarded-proto') ?? 'https';
-  return host ? `${proto}://${host}` : '';
-}
 
 // Step 1: Get Microsoft OAuth URL
 app.get('/bind', authMiddleware, async (c) => {

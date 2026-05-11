@@ -13,6 +13,8 @@ export interface Env {
   EMAIL_VERIFICATION_RECIPIENT: string;
   EMAIL_VERIFICATION_TOKEN_BYTES: string;
   EMAIL_VERIFICATION_TTL_SECONDS: string;
+  /** Comma-separated list of allowed CORS origins. Defaults to local development origins. */
+  ALLOWED_ORIGINS?: string;
 }
 
 // === Identity Roles ===
@@ -116,6 +118,15 @@ export interface YggdrasilProfile {
     value: string;
     signature?: string;
   }>;
+  /**
+   * Canonical club short-code (e.g. "JLUCraft").
+   *
+   * The database column `users.club` stores a single short
+   * identifier — there is no separate display-name field.
+   * MUA / Union extension profile endpoints expose this
+   * canonical code exclusively as `club_code`.
+   */
+  club_code?: string | null;
 }
 
 export interface YggdrasilTexturesProperty {

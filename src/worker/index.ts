@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
-import { cors } from 'hono/cors';
 import type { Env } from './types';
-import { success } from './utils/response';
+import { success, error, pngResponse } from './utils/response';
+import { getBaseUrl } from './utils/request';
 
 import authRoutes from './routes/auth';
 import skinRoutes from './routes/skin';
@@ -11,12 +11,9 @@ import adminRoutes from './routes/admin';
 import premiumRoutes from './routes/premium';
 import unionRoutes from './routes/union';
 
-import { getEmailVerificationByToken, markEmailExpired, markEmailVerified, parseVerificationEmail, isAllowedDomain, isExpired, normalizeEmail, readPolicy } from './services/email';
-import { getUserByEmail, updateUser } from './services/user';
 import { ConfigurationError } from './services/security';
-import siteConfig from '../../site.config.json';
+import { handleIncomingEmail } from './services/email-worker';
 import { initDatabase } from './services/db-init';
-import { error } from './utils/response';
 import { strictRateLimit, standardRateLimit } from './middleware/rate-limit';
 
 const app = new Hono<{ Bindings: Env }>();
@@ -31,12 +28,6 @@ app.onError((err) => {
   return error('Internal server error', 500);
 });
 
-function getBaseUrl(c: import('hono').Context<{ Bindings: Env }>): string {
-  const host = c.req.header('host');
-  const proto = c.req.header('x-forwarded-proto') ?? 'https';
-  return host ? `${proto}://${host}` : '';
-}
-
 function addAliHeader(c: import('hono').Context<{ Bindings: Env }>, response: Response): Response {
   const next = new Response(response.body, response);
   next.headers.set('X-Authlib-Injector-API-Location', `${getBaseUrl(c)}${YGGDRASIL_PATH}`);
@@ -49,13 +40,49 @@ app.use(async (c, next) => {
   await next();
 });
 
-// CORS
-app.use(cors({
-  origin: (origin) => origin,
-  allowMethods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowHeaders: ['Content-Type', 'Authorization'],
-  maxAge: 86400,
-}));
+const DEFAULT_ALLOWED_ORIGINS = [
+  'http://localhost:1420',
+  'http://localhost:3000',
+  'http://localhost:5173',
+  'http://127.0.0.1:1420',
+  'http://127.0.0.1:3000',
+  'http://127.0.0.1:5173',
+];
+
+function getAllowedOrigins(env: Env): string[] {
+  if (env.ALLOWED_ORIGINS) {
+    return env.ALLOWED_ORIGINS.split(',').map(s => s.trim()).filter(s => s.length > 0);
+  }
+  return DEFAULT_ALLOWED_ORIGINS;
+}
+
+// CORS — no longer reflects arbitrary origin; uses ALLOWED_ORIGINS whitelist.
+app.use('*', async (c, next) => {
+  const allowed = getAllowedOrigins(c.env);
+  const requestOrigin = c.req.header('origin');
+  const isAllowed = requestOrigin ? allowed.includes(requestOrigin) : false;
+
+  if (c.req.method === 'OPTIONS') {
+    const resp = new Response(null, { status: 204 });
+    if (isAllowed && requestOrigin) {
+      resp.headers.set('Access-Control-Allow-Origin', requestOrigin);
+    }
+    resp.headers.set('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
+    resp.headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-MUA-API-Key, X-Message-Signature, X-Message-Timestamp, X-Message-Nonce');
+    resp.headers.set('Access-Control-Max-Age', '86400');
+    return resp;
+  }
+
+  await next();
+
+  if (isAllowed && requestOrigin) {
+    c.res.headers.set('Access-Control-Allow-Origin', requestOrigin);
+    c.res.headers.set('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
+    c.res.headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-MUA-API-Key, X-Message-Signature, X-Message-Timestamp, X-Message-Nonce');
+    c.res.headers.set('Access-Control-Max-Age', '86400');
+  }
+  return c.res;
+});
 
 // Health check
 app.get('/health', (_c) => success({ status: 'ok', version: '1.0.0' }));
@@ -90,12 +117,7 @@ app.get('/textures/:hash', async (c) => {
     return new Response(null, { status: 404 });
   }
 
-  return new Response(data.body, {
-    headers: {
-      'Content-Type': 'image/png',
-      'Cache-Control': 'public, max-age=31536000',
-    },
-  });
+  return pngResponse(await data.arrayBuffer());
 });
 
 // Serve frontend SPA (fallback to static assets)
@@ -110,76 +132,6 @@ export default {
   },
 
   async email(message: ForwardableEmailMessage, env: Env, _ctx: ExecutionContext): Promise<void> {
-    const from = message.from;
-    const to = normalizeEmail(message.to);
-    const subject = message.headers.get('subject') ?? '';
-    const policy = readPolicy(env);
-
-    // Read email body
-    let body = '';
-    if (message.raw) {
-      const raw = await new Response(message.raw).text();
-      body = raw;
-    }
-
-    // Only process verification emails sent to the configured verification mailbox.
-    if (to !== policy.recipient) {
-      console.log(`Ignoring email to ${to}`);
-      return;
-    }
-
-    const parsed = parseVerificationEmail(from, subject, body, policy.tokenChars);
-    if (!parsed.valid || !parsed.token) {
-      console.log(`Could not parse verification from email by ${from}`);
-      return;
-    }
-
-    // Validate email domain
-    if (!isAllowedDomain(parsed.email, siteConfig.allowedEmailDomains)) {
-      console.log(`Email domain not allowed: ${parsed.email}`);
-      return;
-    }
-
-    const db = env.DB;
-
-    // Find verification record
-    const verification = await getEmailVerificationByToken(db, parsed.token);
-    if (!verification || verification.status !== 'pending') {
-      console.log(`Verification not found or already processed: ${parsed.token}`);
-      return;
-    }
-
-    if (isExpired(verification, Math.floor(Date.now() / 1000), policy.ttlSeconds)) {
-      await markEmailExpired(db, verification.id);
-      console.log(`Verification expired: ${parsed.token}`);
-      return;
-    }
-
-    // Check if token matches the email
-    if (verification.email !== parsed.email) {
-      console.log(`Email mismatch: expected ${verification.email}, got ${parsed.email}`);
-      return;
-    }
-
-    const domain = parsed.email.split('@')[1];
-
-    // Update user if linked
-    if (verification.user_id) {
-      const existing = await getUserByEmail(db, parsed.email);
-      if (existing && existing.id !== verification.user_id) {
-        console.log(`Email already registered: ${parsed.email}`);
-        return;
-      }
-      await updateUser(db, verification.user_id, {
-        email: parsed.email,
-        email_verified: 1,
-        email_domain: domain ?? null,
-      });
-      await markEmailVerified(db, verification.id, verification.user_id);
-    } else {
-      await markEmailVerified(db, verification.id);
-    }
-
-    console.log(`Email verified: ${parsed.email}`);
+    await handleIncomingEmail(message, env);
   },
 };

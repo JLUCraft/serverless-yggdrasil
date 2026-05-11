@@ -104,6 +104,19 @@ export function generateToken(byteLength: number): string {
   return bytesToHex(randomBytes(byteLength));
 }
 
+/**
+ * Deterministic internal_id from UUID for MUA mapped profile responses.
+ * Used for data privacy — masks the real UUID behind a stable integer.
+ */
+export function hashUUIDToInternalId(uuid: string): number {
+  let hash = 0;
+  for (let i = 0; i < uuid.length; i++) {
+    hash = ((hash << 5) - hash) + uuid.charCodeAt(i);
+    hash = hash & hash;
+  }
+  return Math.abs(hash);
+}
+
 export function base64ToBytes(base64: string): Uint8Array {
   return Uint8Array.from(atob(base64), c => c.charCodeAt(0));
 }

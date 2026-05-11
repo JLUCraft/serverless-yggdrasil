@@ -10,13 +10,25 @@ import {
   triggerSync,
   remapUUID,
   getBackendKey,
+  getUnionPublicKey,
 } from '../services/union';
 import { getMUABindingsByUser, getAllTrustedSites, queryMUAUnion, queryMUAUnionByName, resolveMUASource } from '../services/mua';
 import { getProfileByUUID, getProfileByName } from '../services/user';
 import { getTextureById, getTextureData } from '../services/skin';
-import { success, error } from '../utils/response';
+import { success, error, pngResponse } from '../utils/response';
+import { hashUUIDToInternalId } from '../utils/crypto';
 
 const app = new Hono<{ Bindings: Env }>();
+
+// Structured public key endpoint — returns JSON with public_key_pem.
+// Verifiers should use this instead of scraping HTML.
+app.get('/pubkey', async (c) => {
+  const publicKey = await getUnionPublicKey(c.env.DB);
+  if (!publicKey) {
+    return c.json({ error: 'Public key not configured' }, 404);
+  }
+  return c.json({ public_key_pem: publicKey });
+});
 
 app.use('/member/*', unionVerifyMiddleware);
 
@@ -151,15 +163,6 @@ app.get('/member/queryemail', async (c) => {
 
 // ===== Public Union API (MUA standard format, machine-consumable) =====
 
-function hashInternalId(uuid: string): number {
-  let hash = 0;
-  for (let i = 0; i < uuid.length; i++) {
-    hash = ((hash << 5) - hash) + uuid.charCodeAt(i);
-    hash = hash & hash;
-  }
-  return Math.abs(hash);
-}
-
 // Profile mapped by UUID (MUA standard format)
 app.get('/profile/mapped/byuuid/:uuid', async (c) => {
   const uuid = c.req.param('uuid');
@@ -176,15 +179,20 @@ app.get('/profile/mapped/byuuid/:uuid', async (c) => {
   const bindingSites = bindings.map(b => b.source_site);
   const allSites = [source.source, ...bindingSites.filter(s => s !== source.source)];
 
-  return c.json({
-    internal_id: hashInternalId(uuid),
+  const result: Record<string, unknown> = {
+    internal_id: hashUUIDToInternalId(uuid),
     uuid,
     name,
     backend_scopes: {
       bind: bindingSites[0] ?? source.source,
       all: allSites,
     },
-  });
+  };
+  if (localProfile?.club) {
+    result.club_code = localProfile.club;
+  }
+
+  return c.json(result);
 });
 
 // Profile mapped by name (MUA standard format)
@@ -203,15 +211,20 @@ app.get('/profile/mapped/byname/:name', async (c) => {
   const bindingSites = bindings.map(b => b.source_site);
   const allSites = [siteCode, ...bindingSites.filter(s => s !== siteCode)];
 
-  return c.json({
-    internal_id: hashInternalId(localProfile.uuid),
+  const mapped: Record<string, unknown> = {
+    internal_id: hashUUIDToInternalId(localProfile.uuid),
     uuid: localProfile.uuid,
     name,
     backend_scopes: {
       bind: bindingSites[0] ?? siteCode,
       all: allSites,
     },
-  });
+  };
+  if (localProfile.club) {
+    mapped.club_code = localProfile.club;
+  }
+
+  return c.json(mapped);
 });
 
 // Skin by player name (MUA standard format — returns PNG)
@@ -226,9 +239,7 @@ app.get('/skin/byname/:name', async (c) => {
     if (texture) {
       const data = await getTextureData(c.env.SKINS, texture.hash);
       if (data) {
-        return new Response(data, {
-          headers: { 'Content-Type': 'image/png', 'Cache-Control': 'public, max-age=31536000' },
-        });
+        return pngResponse(data);
       }
     }
   }
@@ -242,10 +253,7 @@ app.get('/skin/byname/:name', async (c) => {
       try {
         const resp = await fetch(skinUrl);
         if (resp.ok) {
-          const data = await resp.arrayBuffer();
-          return new Response(data, {
-            headers: { 'Content-Type': 'image/png', 'Cache-Control': 'public, max-age=31536000' },
-          });
+          return pngResponse(await resp.arrayBuffer());
         }
       } catch { /* try next */ }
     }
@@ -266,9 +274,7 @@ app.get('/skin/byuuid/:uuid', async (c) => {
     if (texture) {
       const data = await getTextureData(c.env.SKINS, texture.hash);
       if (data) {
-        return new Response(data, {
-          headers: { 'Content-Type': 'image/png', 'Cache-Control': 'public, max-age=31536000' },
-        });
+        return pngResponse(data);
       }
     }
   }
@@ -282,10 +288,7 @@ app.get('/skin/byuuid/:uuid', async (c) => {
       try {
         const resp = await fetch(skinUrl);
         if (resp.ok) {
-          const data = await resp.arrayBuffer();
-          return new Response(data, {
-            headers: { 'Content-Type': 'image/png', 'Cache-Control': 'public, max-age=31536000' },
-          });
+          return pngResponse(await resp.arrayBuffer());
         }
       } catch { /* try next */ }
     }

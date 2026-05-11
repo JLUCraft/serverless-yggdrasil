@@ -1,15 +1,12 @@
 import type { MiddlewareHandler } from 'hono';
 import type { Env } from '../types';
 import { error } from '../utils/response';
+import { getClientIP } from '../utils/request';
 
 interface RateLimitConfig {
   windowSeconds: number;
   maxRequests: number;
   keyPrefix?: string;
-}
-
-function getClientIP(c: { req: { header: (name: string) => string | undefined } }): string {
-  return c.req.header('CF-Connecting-IP') ?? c.req.header('X-Forwarded-For') ?? 'unknown';
 }
 
 function makeKey(ip: string, prefix: string, windowStart: number): string {

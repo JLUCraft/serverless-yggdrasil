@@ -86,29 +86,29 @@ export async function getPlayerProfiles(db: D1Database, userId: number): Promise
   return results ?? [];
 }
 
-export async function getProfileByName(db: D1Database, name: string): Promise<(PlayerProfile & { user_uuid: string }) | null> {
+export async function getProfileByName(db: D1Database, name: string): Promise<(PlayerProfile & { user_uuid: string; club: string | null }) | null> {
   const row = await db
     .prepare(
-      `SELECT pp.*, u.uuid as user_uuid
+      `SELECT pp.*, u.uuid as user_uuid, u.club
        FROM player_profiles pp
        JOIN users u ON pp.user_id = u.id
        WHERE pp.name = ?`
     )
     .bind(name)
-    .first<PlayerProfile & { user_uuid: string }>();
+    .first<PlayerProfile & { user_uuid: string; club: string | null }>();
   return row ?? null;
 }
 
-export async function getProfileByUUID(db: D1Database, uuid: string): Promise<(PlayerProfile & { user_uuid: string }) | null> {
+export async function getProfileByUUID(db: D1Database, uuid: string): Promise<(PlayerProfile & { user_uuid: string; club: string | null }) | null> {
   const row = await db
     .prepare(
-      `SELECT pp.*, u.uuid as user_uuid
+      `SELECT pp.*, u.uuid as user_uuid, u.club
        FROM player_profiles pp
        JOIN users u ON pp.user_id = u.id
        WHERE pp.uuid = ?`
     )
     .bind(normalizeUUID(uuid))
-    .first<PlayerProfile & { user_uuid: string }>();
+    .first<PlayerProfile & { user_uuid: string; club: string | null }>();
   return row ?? null;
 }
 

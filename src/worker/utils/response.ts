@@ -32,6 +32,20 @@ function getErrorName(status: number): string {
   return map[status] ?? 'Unknown Error';
 }
 
+/**
+ * Returns a PNG image Response with long-lived cache headers.
+ * Callers must ensure `data` is a valid PNG buffer.
+ */
+export function pngResponse(data: ArrayBuffer | Uint8Array, status: number = 200): Response {
+  return new Response(data, {
+    status,
+    headers: {
+      'Content-Type': 'image/png',
+      'Cache-Control': 'public, max-age=31536000',
+    },
+  });
+}
+
 // Yggdrasil standard error format
 export function yggdrasilError(
   error: string,

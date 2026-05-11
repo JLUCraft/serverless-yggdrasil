@@ -3,7 +3,7 @@ import type { Env, Variables } from '../types';
 import { authMiddleware } from '../middleware/auth';
 import * as userService from '../services/user';
 import * as skinService from '../services/skin';
-import { success, error } from '../utils/response';
+import { success, error, pngResponse } from '../utils/response';
 
 const app = new Hono<{ Bindings: Env; Variables: Variables }>();
 
@@ -87,12 +87,7 @@ app.get('/textures/:hash', async (c) => {
     return error('Texture not found', 404);
   }
 
-  return new Response(data, {
-    headers: {
-      'Content-Type': 'image/png',
-      'Cache-Control': 'public, max-age=31536000',
-    },
-  });
+  return pngResponse(data);
 });
 
 // Delete texture

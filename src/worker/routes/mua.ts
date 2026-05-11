@@ -5,24 +5,28 @@ import { requireRole } from '../middleware/rbac';
 import * as userService from '../services/user';
 import * as skinService from '../services/skin';
 import * as muaService from '../services/mua';
-import { success, error } from '../utils/response';
+import { success, error, pngResponse } from '../utils/response';
+import { getBaseUrl } from '../utils/request';
+import { hashUUIDToInternalId } from '../utils/crypto';
 
 const app = new Hono<{ Bindings: Env; Variables: Variables }>();
 
-function getBaseUrl(c: { req: { header: (name: string) => string | undefined } }): string {
-  const host = c.req.header('host');
-  const proto = c.req.header('x-forwarded-proto') ?? 'https';
-  return host ? `${proto}://${host}` : '';
-}
+async function resolveMUAStatus(
+  db: Env['DB'],
+  uuid: string
+): Promise<{ source: string; sourceName: string } | null> {
+  const localSource = await muaService.resolveMUASource(db, uuid);
+  if (localSource) return localSource;
 
-/** Deterministic internal_id from UUID for MUA mapped profile responses. */
-function hashMuaInternalId(uuid: string): number {
-  let hash = 0;
-  for (let i = 0; i < uuid.length; i++) {
-    hash = ((hash << 5) - hash) + uuid.charCodeAt(i);
-    hash = hash & hash;
+  const trustedSites = await muaService.getAllTrustedSites(db);
+  for (const site of trustedSites) {
+    const profile = await muaService.queryMUAUnion(site.endpoint, uuid);
+    if (profile) {
+      return { source: site.site_code, sourceName: site.site_name };
+    }
   }
-  return Math.abs(hash);
+
+  return null;
 }
 
 // MUA API Key 认证中间件
@@ -122,7 +126,7 @@ app.get('/profile/:uuid', async (c) => {
       localProfile.skin_texture_id ? skinService.getTextureById(db, localProfile.skin_texture_id) : null,
       localProfile.cape_texture_id ? skinService.getTextureById(db, localProfile.cape_texture_id) : null,
     ]);
-    const result = {
+    const result: Record<string, unknown> = {
       id: uuid,
       name: localProfile.name,
       source: config?.site_code ?? 'unknown',
@@ -130,6 +134,9 @@ app.get('/profile/:uuid', async (c) => {
       skins: skin ? [{ url: `${baseUrl}/textures/${skin.hash}` }] : [],
       capes: cape ? [{ url: `${baseUrl}/textures/${cape.hash}` }] : [],
     };
+    if (localProfile.club) {
+      result.club_code = localProfile.club;
+    }
     return isMachine ? c.json(result) : success(result);
   }
 
@@ -138,7 +145,7 @@ app.get('/profile/:uuid', async (c) => {
   for (const site of trustedSites) {
     const profile = await muaService.queryMUAUnion(site.endpoint, uuid);
     if (profile) {
-      const result = {
+      const result: Record<string, unknown> = {
         id: profile.id,
         name: profile.name,
         source: site.site_code,
@@ -146,6 +153,10 @@ app.get('/profile/:uuid', async (c) => {
         skins: profile.skins,
         capes: profile.capes,
       };
+      const remoteClub = profile.club_code ?? profile.club ?? null;
+      if (remoteClub) {
+        result.club_code = remoteClub;
+      }
       return isMachine ? c.json(result) : success(result);
     }
   }
@@ -174,7 +185,7 @@ app.get('/profile/name/:name', async (c) => {
       localProfile.skin_texture_id ? skinService.getTextureById(db, localProfile.skin_texture_id) : null,
       localProfile.cape_texture_id ? skinService.getTextureById(db, localProfile.cape_texture_id) : null,
     ]);
-    const result = {
+    const result: Record<string, unknown> = {
       id: localProfile.uuid,
       name: localProfile.name,
       source: config?.site_code ?? 'unknown',
@@ -182,6 +193,9 @@ app.get('/profile/name/:name', async (c) => {
       skins: skin ? [{ url: `${baseUrl}/textures/${skin.hash}` }] : [],
       capes: cape ? [{ url: `${baseUrl}/textures/${cape.hash}` }] : [],
     };
+    if (localProfile.club) {
+      result.club_code = localProfile.club;
+    }
     return isMachine ? c.json(result) : success(result);
   }
 
@@ -190,7 +204,7 @@ app.get('/profile/name/:name', async (c) => {
   for (const site of trustedSites) {
     const profile = await muaService.queryMUAUnionByName(site.endpoint, name);
     if (profile) {
-      const result = {
+      const result: Record<string, unknown> = {
         id: profile.id,
         name: profile.name,
         source: site.site_code,
@@ -198,6 +212,10 @@ app.get('/profile/name/:name', async (c) => {
         skins: profile.skins,
         capes: profile.capes,
       };
+      const remoteClub = profile.club_code ?? profile.club ?? null;
+      if (remoteClub) {
+        result.club_code = remoteClub;
+      }
       return isMachine ? c.json(result) : success(result);
     }
   }
@@ -213,7 +231,7 @@ app.get('/check/:uuid', async (c) => {
   }
   const db = c.env.DB;
 
-  const source = await muaService.resolveMUASource(db, uuid);
+  const source = await resolveMUAStatus(db, uuid);
   return success({
     uuid,
     is_mua_member: source !== null,
@@ -227,7 +245,7 @@ app.get('/check/:uuid', async (c) => {
 // Used by federated-server and other union members for cross-site profile queries
 
 // S2S: Query MUA profile by UUID (flat JSON, snake_case fields)
-app.get('/s2s/profile/:uuid', async (c) => {
+app.get('/s2s/profile/:uuid', muaAuth, async (c) => {
   const uuid = c.req.param('uuid');
   if (!uuid) {
     return c.json({ error: 'UUID is required' }, 400);
@@ -237,24 +255,33 @@ app.get('/s2s/profile/:uuid', async (c) => {
   const localProfile = await userService.getProfileByUUID(db, uuid);
   if (localProfile) {
     const config = await muaService.getMUAConfig(db);
-    return c.json({
+    const result: Record<string, unknown> = {
       id: uuid,
       name: localProfile.name,
       source: config?.site_code ?? 'unknown',
       source_name: config?.site_name ?? 'Unknown',
-    });
+    };
+    if (localProfile.club) {
+      result.club_code = localProfile.club;
+    }
+    return c.json(result);
   }
 
   const trustedSites = await muaService.getAllTrustedSites(db);
   for (const site of trustedSites) {
     const profile = await muaService.queryMUAUnion(site.endpoint, uuid);
     if (profile) {
-      return c.json({
+      const result: Record<string, unknown> = {
         id: profile.id,
         name: profile.name,
         source: site.site_code,
         source_name: site.site_name,
-      });
+      };
+      const remoteClub = profile.club_code ?? profile.club ?? null;
+      if (remoteClub) {
+        result.club_code = remoteClub;
+      }
+      return c.json(result);
     }
   }
 
@@ -262,7 +289,7 @@ app.get('/s2s/profile/:uuid', async (c) => {
 });
 
 // S2S: Query MUA profile by name (flat JSON, snake_case fields)
-app.get('/s2s/profile/name/:name', async (c) => {
+app.get('/s2s/profile/name/:name', muaAuth, async (c) => {
   const name = c.req.param('name');
   if (!name) {
     return c.json({ error: 'Name is required' }, 400);
@@ -272,24 +299,33 @@ app.get('/s2s/profile/name/:name', async (c) => {
   const localProfile = await userService.getProfileByName(db, name);
   if (localProfile) {
     const config = await muaService.getMUAConfig(db);
-    return c.json({
+    const result: Record<string, unknown> = {
       id: localProfile.uuid,
       name: localProfile.name,
       source: config?.site_code ?? 'unknown',
       source_name: config?.site_name ?? 'Unknown',
-    });
+    };
+    if (localProfile.club) {
+      result.club_code = localProfile.club;
+    }
+    return c.json(result);
   }
 
   const trustedSites = await muaService.getAllTrustedSites(db);
   for (const site of trustedSites) {
     const profile = await muaService.queryMUAUnionByName(site.endpoint, name);
     if (profile) {
-      return c.json({
+      const result: Record<string, unknown> = {
         id: profile.id,
         name: profile.name,
         source: site.site_code,
         source_name: site.site_name,
-      });
+      };
+      const remoteClub = profile.club_code ?? profile.club ?? null;
+      if (remoteClub) {
+        result.club_code = remoteClub;
+      }
+      return c.json(result);
     }
   }
 
@@ -297,14 +333,14 @@ app.get('/s2s/profile/name/:name', async (c) => {
 });
 
 // S2S: Check if player is MUA member (flat JSON)
-app.get('/s2s/check/:uuid', async (c) => {
+app.get('/s2s/check/:uuid', muaAuth, async (c) => {
   const uuid = c.req.param('uuid');
   if (!uuid) {
     return c.json({ error: 'UUID is required' }, 400);
   }
   const db = c.env.DB;
 
-  const source = await muaService.resolveMUASource(db, uuid);
+  const source = await resolveMUAStatus(db, uuid);
   return c.json({
     uuid,
     is_mua_member: source !== null,
@@ -332,14 +368,18 @@ app.get('/union/profile/:uuid', muaAuth, async (c) => {
       localProfile.skin_texture_id ? skinService.getTextureById(db, localProfile.skin_texture_id) : null,
       localProfile.cape_texture_id ? skinService.getTextureById(db, localProfile.cape_texture_id) : null,
     ]);
-    return success({
+    const result: Record<string, unknown> = {
       id: uuid,
       name: localProfile.name,
       source: config?.site_code ?? 'unknown',
       sourceName: config?.site_name ?? 'Unknown',
       skins: skin ? [{ url: `${baseUrl}/textures/${skin.hash}` }] : [],
       capes: cape ? [{ url: `${baseUrl}/textures/${cape.hash}` }] : [],
-    });
+    };
+    if (localProfile.club) {
+      result.club_code = localProfile.club;
+    }
+    return success(result);
   }
 
   // Check MUA bindings and forward
@@ -355,14 +395,19 @@ app.get('/union/profile/:uuid', muaAuth, async (c) => {
       if (trusted) {
         const remoteProfile = await muaService.queryMUAUnion(trusted.endpoint, uuid);
         if (remoteProfile) {
-          return success({
+          const result: Record<string, unknown> = {
             id: remoteProfile.id,
             name: remoteProfile.name,
             source: siteCode,
             sourceName: trusted.site_name,
             skins: remoteProfile.skins,
             capes: remoteProfile.capes,
-          });
+          };
+          const remoteClub = remoteProfile.club_code ?? remoteProfile.club ?? null;
+          if (remoteClub) {
+            result.club_code = remoteClub;
+          }
+          return success(result);
         }
       }
     }
@@ -396,8 +441,8 @@ app.get('/union/profile/mapped/byuuid/:uuid', muaAuth, async (c) => {
   const bindingSites = (bindings ?? []).map(b => b.source_site);
   const allSites = [source.source, ...bindingSites.filter(s => s !== source.source)];
 
-  const mapped = {
-    internal_id: hashMuaInternalId(uuid),
+  const mapped: Record<string, unknown> = {
+    internal_id: hashUUIDToInternalId(uuid),
     uuid,
     name,
     backend_scopes: {
@@ -405,6 +450,9 @@ app.get('/union/profile/mapped/byuuid/:uuid', muaAuth, async (c) => {
       all: allSites,
     },
   };
+  if (localProfile?.club) {
+    mapped.club_code = localProfile.club;
+  }
 
   return success(mapped);
 });
@@ -434,8 +482,8 @@ app.get('/union/profile/mapped/byname/:name', muaAuth, async (c) => {
   const bindingSites = (bindings ?? []).map(b => b.source_site);
   const allSites = [siteCode, ...bindingSites.filter(s => s !== siteCode)];
 
-  const mapped = {
-    internal_id: hashMuaInternalId(localProfile.uuid),
+  const mapped: Record<string, unknown> = {
+    internal_id: hashUUIDToInternalId(localProfile.uuid),
     uuid: localProfile.uuid,
     name,
     backend_scopes: {
@@ -443,12 +491,15 @@ app.get('/union/profile/mapped/byname/:name', muaAuth, async (c) => {
       all: allSites,
     },
   };
+  if (localProfile.club) {
+    mapped.club_code = localProfile.club;
+  }
 
   return success(mapped);
 });
 
-// Union API: Get skin image by player name
-app.get('/union/skin/byname/:name', async (c) => {
+// Union API: Get skin image by player name (requires MUA API key for union S2S).
+app.get('/union/skin/byname/:name', muaAuth, async (c) => {
   const name = c.req.param('name');
   if (!name) {
     return error('Name is required', 400);
@@ -462,12 +513,7 @@ app.get('/union/skin/byname/:name', async (c) => {
     if (texture) {
       const data = await skinService.getTextureData(c.env.SKINS, texture.hash);
       if (data) {
-        return new Response(data, {
-          headers: {
-            'Content-Type': 'image/png',
-            'Cache-Control': 'public, max-age=31536000',
-          },
-        });
+        return pngResponse(data);
       }
     }
   }
@@ -482,13 +528,7 @@ app.get('/union/skin/byname/:name', async (c) => {
       try {
         const resp = await fetch(skinUrl);
         if (resp.ok) {
-          const data = await resp.arrayBuffer();
-          return new Response(data, {
-            headers: {
-              'Content-Type': 'image/png',
-              'Cache-Control': 'public, max-age=31536000',
-            },
-          });
+          return pngResponse(await resp.arrayBuffer());
         }
       } catch {
         // Continue to next site
@@ -499,8 +539,8 @@ app.get('/union/skin/byname/:name', async (c) => {
   return error('Skin not found', 404);
 });
 
-// Union API: Get skin image by UUID
-app.get('/union/skin/byuuid/:uuid', async (c) => {
+// Union API: Get skin image by UUID (requires MUA API key for union S2S).
+app.get('/union/skin/byuuid/:uuid', muaAuth, async (c) => {
   const uuid = c.req.param('uuid');
   if (!uuid) {
     return error('UUID is required', 400);
@@ -514,12 +554,7 @@ app.get('/union/skin/byuuid/:uuid', async (c) => {
     if (texture) {
       const data = await skinService.getTextureData(c.env.SKINS, texture.hash);
       if (data) {
-        return new Response(data, {
-          headers: {
-            'Content-Type': 'image/png',
-            'Cache-Control': 'public, max-age=31536000',
-          },
-        });
+        return pngResponse(data);
       }
     }
   }
@@ -534,13 +569,7 @@ app.get('/union/skin/byuuid/:uuid', async (c) => {
       try {
         const resp = await fetch(skinUrl);
         if (resp.ok) {
-          const data = await resp.arrayBuffer();
-          return new Response(data, {
-            headers: {
-              'Content-Type': 'image/png',
-              'Cache-Control': 'public, max-age=31536000',
-            },
-          });
+          return pngResponse(await resp.arrayBuffer());
         }
       } catch {
         // Continue to next site
@@ -603,7 +632,7 @@ app.post('/trusted-sites', authMiddleware, requireRole('admin'), async (c) => {
   return success({ added: true });
 });
 
-// Get MUA config (admin only, includes plaintext api_key for easy sharing)
+// Get MUA config (admin only, api_key returned as boolean configured indicator)
 app.get('/config', authMiddleware, requireRole('admin'), async (c) => {
   const db = c.env.DB;
   const config = await muaService.getStoredConfig(db);
@@ -615,7 +644,7 @@ app.get('/config', authMiddleware, requireRole('admin'), async (c) => {
   return success({
     site_code: config.site_code,
     site_name: config.site_name,
-    api_key: config.api_key,
+    api_key_configured: config.api_key_hash !== null,
     union_endpoint: config.union_endpoint,
     enabled: config.enabled === 1,
   });
@@ -649,9 +678,7 @@ app.patch('/config', authMiddleware, requireRole('admin'), async (c) => {
     values.push(body.site_name);
   }
   if (body.api_key !== undefined) {
-    updates.push('api_key = ?');
-    values.push(body.api_key);
-    // Also update hash for compatibility
+    // P0-4: Never store plaintext — only persist the hash
     if (body.api_key) {
       const encoder = new TextEncoder();
       const hashBuffer = await crypto.subtle.digest('SHA-256', encoder.encode(body.api_key));
@@ -662,6 +689,8 @@ app.patch('/config', authMiddleware, requireRole('admin'), async (c) => {
       updates.push('api_key_hash = ?');
       values.push(null);
     }
+    // Always clear the plaintext column
+    updates.push('api_key = NULL');
   }
   if (body.union_endpoint !== undefined) {
     updates.push('union_endpoint = ?');
@@ -683,7 +712,7 @@ app.patch('/config', authMiddleware, requireRole('admin'), async (c) => {
   return success({
     site_code: next.site_code,
     site_name: next.site_name,
-    api_key: next.api_key,
+    api_key_configured: next.api_key_hash !== null,
     union_endpoint: next.union_endpoint,
     enabled: next.enabled === 1,
   });

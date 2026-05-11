@@ -21,6 +21,7 @@ export async function authenticate(
       clientToken: string;
       availableProfiles: Array<{ id: string; name: string }>;
       selectedProfile: { id: string; name: string } | null;
+      _userId: number;
       user?: { id: string; username: string; properties: Array<{ name: string; value: string }> };
     }
   | null
@@ -44,12 +45,14 @@ export async function authenticate(
     clientToken: string;
     availableProfiles: Array<{ id: string; name: string }>;
     selectedProfile: { id: string; name: string } | null;
+    _userId: number;
     user?: { id: string; username: string; properties: Array<{ name: string; value: string }> };
   } = {
     accessToken,
     clientToken,
     availableProfiles,
     selectedProfile,
+    _userId: user.id,
   };
 
   if (req.requestUser) {
@@ -73,6 +76,7 @@ export async function refresh(
       clientToken: string;
       selectedProfile: { id: string; name: string } | null;
       availableProfiles: Array<{ id: string; name: string }>;
+      _userId: number;
       user?: { id: string; username: string; properties: Array<{ name: string; value: string }> };
     }
   | null
@@ -80,10 +84,19 @@ export async function refresh(
   // Verify the old token to extract user info
   let user: User | null = null;
   let profile: PlayerProfile | null = null;
+  let resolvedClientToken: string | null = null;
 
   if (req.accessToken) {
     const payload = await verifyJWT<{ sub: string; uid: number; clientToken: string }>(req.accessToken, secret);
     if (payload) {
+      // P0-1: Validate clientToken binding — if the request provides one,
+      // it MUST match the clientToken embedded in the old access token.
+      // If the request omits it, reuse the existing clientToken.
+      if (req.clientToken !== undefined && req.clientToken !== payload.clientToken) {
+        return null;
+      }
+      resolvedClientToken = req.clientToken ?? payload.clientToken;
+
       user = await getUserByUUID(db, payload.sub);
       if (user && req.selectedProfile) {
         const p = await getProfileByUUID(db, req.selectedProfile.id);
@@ -101,7 +114,9 @@ export async function refresh(
 
   if (!user) return null;
 
-  const clientToken = req.clientToken ?? generateUUID();
+  if (!resolvedClientToken) return null;
+
+  const clientToken = resolvedClientToken;
   const accessToken = await generateAccessToken(user, clientToken, secret);
 
   const selectedProfile = profile ? { id: toUndashedUUID(profile.uuid), name: profile.name } : null;
@@ -110,12 +125,14 @@ export async function refresh(
     clientToken: string;
     selectedProfile: { id: string; name: string } | null;
     availableProfiles: Array<{ id: string; name: string }>;
+    _userId: number;
     user?: { id: string; username: string; properties: Array<{ name: string; value: string }> };
   } = {
     accessToken,
     clientToken,
     selectedProfile,
     availableProfiles: selectedProfile ? [selectedProfile] : [],
+    _userId: user.id,
   };
 
   if (req.requestUser) {
@@ -180,7 +197,7 @@ export async function getProfileWithTexturesByName(
 
 async function buildProfileResponse(
   db: D1Database,
-  profile: PlayerProfile & { user_uuid: string },
+  profile: PlayerProfile & { user_uuid: string; club: string | null },
   unsigned: boolean,
   baseUrl?: string
 ): Promise<YggdrasilProfile> {
@@ -244,9 +261,10 @@ async function buildProfileResponse(
     }
   }
 
-  return {
+  const result: YggdrasilProfile = {
     id: toUndashedUUID(profile.uuid),
     name: profile.name,
     properties,
   };
+  return result;
 }

@@ -2,11 +2,24 @@ import type { MiddlewareHandler } from 'hono';
 import type { Env } from '../types';
 import { rsaPkcs1Sha256Verify, base64ToBytes } from '../utils/crypto';
 import { getUnionPublicKey } from '../services/union';
+import { joinEndpoint } from '../services/mua';
 import { error } from '../utils/response';
 
 async function fetchUnionPublicKey(unionEndpoint: string): Promise<string | null> {
   try {
-    const resp = await fetch(`${unionEndpoint}/`);
+    const root = joinEndpoint(unionEndpoint);
+    // Prefer structured /pubkey endpoint (JSON with public_key_pem).
+    const structuredResp = await fetch(`${root}/pubkey`);
+    if (structuredResp.ok) {
+      const contentType = structuredResp.headers.get('content-type') ?? '';
+      if (contentType.includes('json')) {
+        const data = (await structuredResp.json()) as { public_key_pem?: string };
+        if (data.public_key_pem) return data.public_key_pem;
+      }
+    }
+
+    // Legacy fallback: scrape HTML root for PEM block.
+    const resp = await fetch(`${root}/`);
     if (!resp.ok) return null;
     const text = await resp.text();
     const match = text.match(/-----BEGIN PUBLIC KEY-----[\s\S]*?-----END PUBLIC KEY-----/);

@@ -1,5 +1,6 @@
 import type { D1Database } from '@cloudflare/workers-types';
 import type { UnionServer, UnionServerListRecord, UnionSecretRecord } from '../types';
+import { unionEndpoint as normalizeUnionEndpoint } from './mua';
 
 export async function getServerList(db: D1Database): Promise<UnionServerListRecord | null> {
   const row = await db
@@ -146,11 +147,12 @@ export async function triggerSync(
 
   for (const profile of profiles) {
     try {
-      const resp = await fetch(`${unionEndpoint}/profile`, {
+      const resp = await fetch(`${normalizeUnionEndpoint(unionEndpoint)}/profile`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'X-Union-Member-Key': backendKey,
+          'X-MUA-API-Key': backendKey,
         },
         body: JSON.stringify({
           id: profile.uuid,

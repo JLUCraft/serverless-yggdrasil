@@ -3,11 +3,13 @@ import type { Env, Variables } from '../types';
 import { authMiddleware } from '../middleware/auth';
 import { requireRole } from '../middleware/rbac';
 import * as userService from '../services/user';
+import * as muaService from '../services/mua';
 import * as emailService from '../services/email';
 import { readJwtSecret } from '../services/security';
 import siteConfig from '../../../site.config.json';
 import { verifyPassword, signJWT, generateUUID, ed25519Verify, validateEd25519KeyPair } from '../utils/crypto';
 import { success, error } from '../utils/response';
+import { getClientIP } from '../utils/request';
 import { logAuthEvent } from '../services/auth-log';
 
 const app = new Hono<{ Bindings: Env; Variables: Variables }>();
@@ -41,8 +43,36 @@ function validateCredentials(username: string, password: string): Response | nul
   return null;
 }
 
-function getClientIP(c: { req: { header: (name: string) => string | undefined } }): string {
-  return c.req.header('CF-Connecting-IP') ?? c.req.header('X-Forwarded-For') ?? 'unknown';
+function normalizeEndpoint(value: string): string | null {
+  try {
+    const url = new URL(value);
+    if (url.protocol !== 'https:' && url.protocol !== 'http:') {
+      return null;
+    }
+    const pathname = url.pathname.replace(/\/+$/, '');
+    return `${url.protocol}//${url.host}${pathname}`;
+  } catch {
+    return null;
+  }
+}
+
+async function findTrustedMUAEndpoint(db: Env['DB'], authServerUrl: string): Promise<muaService.MUATrustedSite | null> {
+  const requestedEndpoint = normalizeEndpoint(authServerUrl);
+  if (!requestedEndpoint) return null;
+
+  const trustedSites = await muaService.getAllTrustedSites(db);
+  return trustedSites.find((site) => normalizeEndpoint(site.endpoint) === requestedEndpoint) ?? null;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null;
+}
+
+function readSelectedProfile(value: unknown): { id: string; name: string } | null {
+  if (!isRecord(value) || !isRecord(value.selectedProfile)) return null;
+  const { id, name } = value.selectedProfile;
+  if (typeof id !== 'string' || typeof name !== 'string') return null;
+  return { id, name };
 }
 
 async function verifyPeerIdOwnership(
@@ -54,8 +84,9 @@ async function verifyPeerIdOwnership(
   let keyPair: { publicKey: Uint8Array; signature: Uint8Array };
   try {
     keyPair = validateEd25519KeyPair(publicKeyBase64, signatureBase64);
-  } catch (err: any) {
-    return error(err.message, 400);
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Invalid key or signature encoding';
+    return error(message, 400);
   }
 
   const message = new TextEncoder().encode(`bind-peer:${uuid}:${peerId}`);
@@ -381,36 +412,45 @@ app.post('/mua-peer-bind', async (c) => {
     return error('mua_access_token, auth_server_url, peer_id, peer_id_public_key, and peer_id_signature are required', 400);
   }
 
+  const db = c.env.DB;
+  const trustedSite = await findTrustedMUAEndpoint(db, body.auth_server_url);
+  if (!trustedSite) {
+    return error('auth_server_url is not a trusted MUA site', 403);
+  }
+
   let muaUUID: string;
   let muaUsername: string;
   try {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 10000);
-    // @ts-expect-error TS6 + @cloudflare/workers-types compat: fetch/Request signatures work at runtime
-    const resp = await fetch(`${body.auth_server_url.trimEnd('/')}/authserver/refresh`, {
+    const init: RequestInit = {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ access_token: body.mua_access_token }),
       signal: controller.signal,
-    });
+    };
+    const endpoint = normalizeEndpoint(trustedSite.endpoint);
+    if (!endpoint) {
+      clearTimeout(timeout);
+      return error('Trusted MUA site endpoint is invalid', 500);
+    }
+    const resp = await fetch(`${endpoint}/authserver/refresh`, init);
     clearTimeout(timeout);
     if (!resp.ok) {
       return error('Invalid MUA access token', 401);
     }
-    const data = await resp.json() as { selectedProfile?: { id: string; name: string } };
-    if (!data.selectedProfile) {
+    const selectedProfile = readSelectedProfile(await resp.json());
+    if (!selectedProfile) {
       return error('No selected profile in MUA token response', 401);
     }
-    muaUUID = data.selectedProfile.id;
-    muaUsername = data.selectedProfile.name;
+    muaUUID = selectedProfile.id;
+    muaUsername = selectedProfile.name;
   } catch {
     return error('Failed to verify MUA access token', 502);
   }
 
   const verifyErr = await verifyPeerIdOwnership(body.peer_id, body.peer_id_public_key, body.peer_id_signature, muaUUID);
   if (verifyErr) return verifyErr;
-
-  const db = c.env.DB;
 
   const [existingPeerUser, muaUser] = await Promise.all([
     userService.getUserByPeerId(db, body.peer_id),
@@ -424,7 +464,7 @@ app.post('/mua-peer-bind', async (c) => {
       email: null,
     });
     await userService.createPlayerProfile(db, user.id, muaUsername);
-    await userService.createMUABinding(db, user.id, muaUUID, 'mua_oauth', muaUUID);
+    await userService.createMUABinding(db, user.id, muaUUID, trustedSite.site_code, muaUUID);
   }
 
   if (existingPeerUser && existingPeerUser.id !== user.id) {
@@ -447,17 +487,7 @@ app.post('/mua-peer-bind', async (c) => {
   });
 });
 
-// Admin: List users
-app.get('/users', authMiddleware, requireRole('admin'), async (c) => {
-  const db = c.env.DB;
-  const { results } = await db
-    .prepare('SELECT id, uuid, username, email, role, status, club, created_at FROM users ORDER BY created_at DESC')
-    .all<{ id: number; uuid: string; username: string; email: string | null; role: string; status: string; club: string | null; created_at: number }>();
-
-  return success(results ?? []);
-});
-
-// Admin: Update user role
+// Admin: Update user role (moved to /api/admin/users/:uuid/role — admin.ts)
 app.patch('/users/:uuid/role', authMiddleware, requireRole('admin'), async (c) => {
   const targetUUID = c.req.param('uuid');
   const body = await c.req.json<{ role: 'guest' | 'member' | 'admin' }>();

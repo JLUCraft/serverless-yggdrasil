@@ -5,6 +5,7 @@
   "description": "Cloudflare Workers based Blessing Skin + MUA Yggdrasil skin station with hierarchical identity",
   "main": "src/worker/index.ts",
   "scripts": {
+    "proto:build": "bun scripts/build-proto.ts",
     "build": "bun run build:client && bun run build:worker",
     "build:client": "tsc --noEmit -p tsconfig.client.json && vite build",
     "build:worker": "tsc --noEmit -p tsconfig.worker.json",
@@ -17,6 +18,7 @@
     "types": "wrangler types"
   },
   "dependencies": {
+    "@bufbuild/protobuf": "^2.12.0",
     "@solidjs/router": "^0.16.1",
     "@noble/ed25519": "^3.1.0",
     "@noble/hashes": "^2.2.0",
@@ -26,6 +28,7 @@
     "three": "^0.184.0"
   },
   "devDependencies": {
+    "@bufbuild/protoc-gen-es": "^2.12.0",
     "@cloudflare/workers-types": "^4.20260426.1",
     "@tailwindcss/vite": "^4.2.4",
     "@types/node": "^25.6.0",
