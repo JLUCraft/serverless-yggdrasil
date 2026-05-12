@@ -7,7 +7,7 @@ import { success, error, pngResponse } from '../utils/response';
 
 const app = new Hono<{ Bindings: Env; Variables: Variables }>();
 
-// Upload skin/cape
+
 app.post('/upload', authMiddleware, async (c) => {
   const jwt = c.get('user');
   const form = await c.req.formData();
@@ -28,14 +28,14 @@ app.post('/upload', authMiddleware, async (c) => {
 
   const buffer = await file.arrayBuffer();
 
-  // Validate PNG (simple magic number check)
+
   const header = new Uint8Array(buffer.slice(0, 8));
   const pngMagic = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
   if (!header.every((b, i) => b === pngMagic[i])) {
     return error('Only PNG files are supported', 400);
   }
 
-  // Validate skin/cape dimensions
+
   const dims = skinService.parsePngDimensions(buffer);
   if (!dims) {
     return error('Invalid PNG file', 400);
@@ -65,7 +65,7 @@ app.post('/upload', authMiddleware, async (c) => {
   });
 });
 
-// List textures available to the current user
+
 app.get('/textures', authMiddleware, async (c) => {
   const jwt = c.get('user');
   const rows = await skinService.getTextures(c.env.DB, jwt.uid);
@@ -79,7 +79,7 @@ app.get('/textures', authMiddleware, async (c) => {
   );
 });
 
-// Get texture data
+
 app.get('/textures/:hash', async (c) => {
   const hash = c.req.param('hash');
   const data = await skinService.getTextureData(c.env.SKINS, hash);
@@ -90,7 +90,7 @@ app.get('/textures/:hash', async (c) => {
   return pngResponse(data);
 });
 
-// Delete texture
+
 app.delete('/textures/:uuid', authMiddleware, async (c) => {
   const jwt = c.get('user');
   const uuid = c.req.param('uuid');
@@ -113,7 +113,7 @@ app.delete('/textures/:uuid', authMiddleware, async (c) => {
   return success({ deleted: true });
 });
 
-// Assign skin/cape to profile
+
 app.post('/profiles/:uuid/textures', authMiddleware, async (c) => {
   const jwt = c.get('user');
   const profileUUID = c.req.param('uuid');
@@ -172,7 +172,7 @@ app.post('/profiles/:uuid/textures', authMiddleware, async (c) => {
   return success({ updated: true });
 });
 
-// List user's profiles
+
 app.get('/profiles', authMiddleware, async (c) => {
   const jwt = c.get('user');
   const db = c.env.DB;
@@ -195,7 +195,7 @@ app.get('/profiles', authMiddleware, async (c) => {
   return success(enriched);
 });
 
-// Create new profile
+
 app.post('/profiles', authMiddleware, async (c) => {
   const jwt = c.get('user');
   const body = await c.req.json<{ name: string; model?: 'default' | 'slim' }>();
@@ -206,7 +206,7 @@ app.post('/profiles', authMiddleware, async (c) => {
 
   const db = c.env.DB;
 
-  // Check name availability
+
   const existing = await userService.getProfileByName(db, body.name);
   if (existing) {
     return error('Profile name already taken', 409);

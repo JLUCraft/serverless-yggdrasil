@@ -33,7 +33,7 @@ export default function Home() {
         </div>
       </div>
 
-      {/* Decorative Grid Floor */}
+      {}
       <div class="absolute bottom-0 left-0 w-full h-[40vh] bg-[linear-gradient(to_right,oklch(var(--p)/0.05)_1px,transparent_1px),linear-gradient(to_bottom,oklch(var(--p)/0.05)_1px,transparent_1px)] bg-[size:4rem_4rem] [mask-image:linear-gradient(to_bottom,transparent,black)] -z-10 transform perspective-[1000px] rotateX-[60deg] origin-bottom scale-150"></div>
     </div>
   );

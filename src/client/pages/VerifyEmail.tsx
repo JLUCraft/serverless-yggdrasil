@@ -4,7 +4,6 @@ import { api, acceptLogin } from '../lib/api';
 import siteConfig from '../../../site.config.json';
 
 const PENDING_KEY = 'pendingRegistration';
-const isMock = () => import.meta.env.DEV;
 
 interface PendingRegistration {
   username: string;
@@ -58,7 +57,7 @@ export default function VerifyEmail() {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch {
-      // fallback
+
     }
   }
 
@@ -91,13 +90,9 @@ export default function VerifyEmail() {
     }
   }
 
-  async function mockVerify() {
-    await completeRegistration();
-  }
-
   return (
     <div class="min-h-screen w-full flex flex-col lg:flex-row bg-base-100">
-      {/* Left Branding Side */}
+      {}
       <div class="hidden lg:flex lg:w-1/2 relative bg-primary/5 flex-col justify-between p-12 border-r border-base-300">
         <div class="absolute inset-0 overflow-hidden pointer-events-none">
           <div class="absolute -top-[20%] -left-[10%] w-[80%] h-[80%] bg-primary/15 rounded-full blur-[120px]"></div>
@@ -117,10 +112,10 @@ export default function VerifyEmail() {
         </div>
       </div>
 
-      {/* Right Content Side */}
+      {}
       <div class="flex-1 flex items-center justify-center p-6 sm:p-10 animate-fade-in">
         <div class="w-full max-w-sm space-y-5">
-          {/* Mobile logo */}
+          {}
           <div class="lg:hidden flex items-center gap-3 mb-2">
             <img src={siteConfig.logoUrl} alt={siteConfig.shortName} class="w-8 h-8 rounded object-contain" />
             <span class="font-bold text-primary">{siteConfig.shortName}</span>
@@ -212,20 +207,6 @@ export default function VerifyEmail() {
             <div class="rounded border border-error/30 bg-error/8 text-error text-sm px-4 py-2.5">
               {error()}
             </div>
-          </Show>
-
-          <Show when={isMock()}>
-            <div class="rounded border border-warning/30 bg-warning/8 text-warning text-sm px-4 py-2.5">
-              <div class="font-semibold mb-1">开发模式</div>
-              <div class="text-xs">点击下方按钮模拟邮件验证完成</div>
-            </div>
-            <button
-              type="button"
-              onClick={() => void mockVerify()}
-              class="btn btn-outline w-full h-11 font-semibold border-dashed border-warning text-warning hover:bg-warning/10"
-            >
-              模拟验证完成
-            </button>
           </Show>
 
           <button

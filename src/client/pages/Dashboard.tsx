@@ -25,13 +25,13 @@ export default function Dashboard() {
   const [error, setError] = createSignal('');
   const [success, setSuccess] = createSignal('');
 
-  // Profile creation
+
   const [draftName, setDraftName] = createSignal('');
   const [draftModel, setDraftModel] = createSignal<'' | Shape>('');
   const [creating, setCreating] = createSignal(false);
   const [showCreate, setShowCreate] = createSignal(false);
 
-  // Texture configuration for selected profile
+
   const [target, setTarget] = createSignal('');
   const [kind, setKind] = createSignal<TextureKind>('skin');
   const [shape, setShape] = createSignal<'' | Shape>('');
@@ -223,7 +223,7 @@ export default function Dashboard() {
         <Rail title="我的账户" top={userCard()} items={railItems} />
 
         <div class="space-y-5">
-          {/* Header */}
+          {}
           <div class="flex items-center justify-between border-b border-base-300 pb-4">
             <div>
               <h1 class="text-2xl font-bold tracking-tight text-base-content">档案配置</h1>
@@ -237,7 +237,7 @@ export default function Dashboard() {
             </button>
           </div>
 
-          {/* Alerts */}
+          {}
           <Show when={error()}>
             <div class="rounded border border-error/25 bg-error/8 px-4 py-2.5 text-sm text-error">{error()}</div>
           </Show>
@@ -245,7 +245,7 @@ export default function Dashboard() {
             <div class="rounded border border-success/30 bg-success/8 px-4 py-2.5 text-sm text-success">{success()}</div>
           </Show>
 
-          {/* Inline create form */}
+          {}
           <Show when={showCreate()}>
             <div class="glass-panel p-5">
               <h2 class="mb-4 font-bold text-base-content">新建档案</h2>
@@ -279,7 +279,7 @@ export default function Dashboard() {
             </div>
           </Show>
 
-          {/* Empty state */}
+          {}
           <Show when={!profiles().length && !showCreate()}>
             <div class="rounded border border-dashed border-base-300 bg-base-200 px-6 py-16 text-center">
               <p class="text-sm text-base-content/60">还没有任何档案</p>
@@ -289,11 +289,11 @@ export default function Dashboard() {
             </div>
           </Show>
 
-          {/* Profile list + config panel */}
+          {}
           <Show when={profiles().length > 0}>
             <div class="grid gap-5 xl:grid-cols-[minmax(0,1fr)_300px] items-start">
 
-              {/* Profile list */}
+              {}
               <div class="space-y-2">
                 <For each={profiles()}>
                   {(entry) => {
@@ -336,7 +336,7 @@ export default function Dashboard() {
                 </For>
               </div>
 
-              {/* Config panel */}
+              {}
               <Show
                 when={active()}
                 fallback={
@@ -350,7 +350,7 @@ export default function Dashboard() {
                 }
               >
                 <div class="space-y-3">
-                  {/* 3D viewer */}
+                  {}
                   <div class="relative overflow-hidden rounded-lg border border-slate-900/80 bg-[radial-gradient(circle_at_top,rgba(87,124,255,0.28),transparent_34%),radial-gradient(circle_at_bottom,rgba(56,189,248,0.18),transparent_30%),linear-gradient(180deg,#0f172a_0%,#020617_100%)]">
                     <div class="absolute inset-x-0 top-0 flex items-center justify-between px-4 py-2.5 text-[11px] font-bold uppercase tracking-widest text-white/50">
                       <span>Drag · Orbit</span>
@@ -370,7 +370,7 @@ export default function Dashboard() {
                     </div>
                   </div>
 
-                  {/* Texture controls */}
+                  {}
                   <div class="glass-panel p-4 space-y-4">
                     <div class="flex items-center justify-between">
                       <h3 class="font-bold text-base-content">配置纹理</h3>

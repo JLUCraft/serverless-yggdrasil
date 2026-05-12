@@ -4,5 +4,6 @@
     "lib": ["ES2023"],
     "types": ["@cloudflare/workers-types"]
   },
-  "include": ["src/worker/**/*", "site.config.json"]
+  "include": ["src/worker/**/*", "site.config.json"],
+  "exclude": ["src/worker/**/*.test.ts", "src/worker/**/__tests__"]
 }

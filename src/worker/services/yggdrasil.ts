@@ -81,7 +81,7 @@ export async function refresh(
     }
   | null
 > {
-  // Verify the old token to extract user info
+
   let user: User | null = null;
   let profile: PlayerProfile | null = null;
   let resolvedClientToken: string | null = null;
@@ -89,9 +89,9 @@ export async function refresh(
   if (req.accessToken) {
     const payload = await verifyJWT<{ sub: string; uid: number; clientToken: string }>(req.accessToken, secret);
     if (payload) {
-      // P0-1: Validate clientToken binding — if the request provides one,
-      // it MUST match the clientToken embedded in the old access token.
-      // If the request omits it, reuse the existing clientToken.
+
+
+
       if (req.clientToken !== undefined && req.clientToken !== payload.clientToken) {
         return null;
       }
@@ -104,7 +104,7 @@ export async function refresh(
           profile = p;
         }
       }
-      // If no selectedProfile requested, use the user's first profile
+
       if (user && !profile) {
         const profiles = await getPlayerProfiles(db, user.id);
         profile = profiles[0] ?? null;
@@ -152,7 +152,7 @@ async function generateAccessToken(user: User, clientToken: string, secret: stri
     uid: user.id,
     clientToken,
     iat: Math.floor(Date.now() / 1000),
-    exp: Math.floor(Date.now() / 1000) + 86400, // 24 hours
+    exp: Math.floor(Date.now() / 1000) + 86400,
   };
   return signJWT(payload, secret);
 }
@@ -168,7 +168,7 @@ export async function validateToken(
 
   return {
     uuid: payload.sub,
-    name: '', // Will be resolved by caller if needed
+    name: '',
     userId: payload.uid,
   };
 }
@@ -247,7 +247,7 @@ async function buildProfileResponse(
   properties.push({ name: 'textures', value: textureValue });
   properties.push({ name: 'uploadableTextures', value: 'skin,cape' });
 
-  // Sign all properties when unsigned=false and a private key is configured
+
   if (!unsigned) {
     const privateKeyPem = await getUnionPrivateKey(db);
     if (privateKeyPem) {

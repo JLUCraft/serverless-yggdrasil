@@ -38,7 +38,7 @@ export function normalizeEmail(email: string): string {
   return email.trim().toLowerCase();
 }
 
-// Generate a verification request for email suffix verification
+
 export async function createEmailVerification(
   db: D1Database,
   email: string,
@@ -112,18 +112,18 @@ export function isExpired(
   return verification.created_at + ttlSeconds < nowSeconds;
 }
 
-// Parse incoming email for verification
+
 export function parseVerificationEmail(
   from: string,
   subject: string,
   body: string,
   tokenChars: number
 ): { email: string; token: string | null; valid: boolean } {
-  // Extract sender email
+
   const emailMatch = from.match(/<?([^\u003e\s]+@[^\u003e\s]+)>?/);
   const email = normalizeEmail(emailMatch?.[1] ?? from);
 
-  // Look for verification token in subject or body
+
   const tokenRegex = new RegExp(`(?<![a-f0-9])[a-f0-9]{${tokenChars}}(?![a-f0-9])`, 'i');
   const tokenMatch = subject.match(tokenRegex) ?? body.match(tokenRegex);
   const token = tokenMatch?.[0]?.toLowerCase() ?? null;
@@ -131,13 +131,13 @@ export function parseVerificationEmail(
   return { email, token, valid: !!token };
 }
 
-// Extract domain from email
+
 export function getEmailDomain(email: string): string | null {
   const match = normalizeEmail(email).match(/@(.+)$/);
   return match?.[1] ?? null;
 }
 
-// Validate email domain against allowed list
+
 export function isAllowedDomain(email: string, allowedDomains: string[]): boolean {
   const domain = getEmailDomain(email);
   if (!domain) return false;

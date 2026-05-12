@@ -8,7 +8,7 @@ function ThemeToggle() {
   const [open, setOpen] = createSignal(false);
   let containerRef: HTMLDivElement | undefined;
 
-  // Close dropdown when clicking outside
+
   createEffect(() => {
     if (!open()) return;
     const handler = (e: MouseEvent) => {
@@ -92,9 +92,9 @@ export default function Layout(props: RouteSectionProps) {
     void loadAccount();
   });
 
-  // Close mobile menu on navigation
+
   createEffect(() => {
-    location.pathname; // track for reactivity
+    location.pathname;
     setMobileOpen(false);
   });
 
@@ -142,7 +142,7 @@ export default function Layout(props: RouteSectionProps) {
                 </div>
               </Show>
 
-              {/* Mobile hamburger */}
+              {}
               <button
                 class="md:hidden p-1.5 rounded text-base-content/70 hover:bg-base-200 transition-colors"
                 onClick={() => setMobileOpen((v) => !v)}
@@ -164,7 +164,7 @@ export default function Layout(props: RouteSectionProps) {
             </div>
           </div>
 
-          {/* Mobile dropdown menu */}
+          {}
           <Show when={mobileOpen()}>
             <div class="md:hidden border-t border-base-200 bg-base-100 px-4 py-3 space-y-0.5">
               <A href="/dashboard" class="flex items-center px-3 py-2 text-sm rounded hover:bg-base-200 transition-colors" activeClass="bg-primary/10 text-primary font-semibold">

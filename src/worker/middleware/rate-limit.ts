@@ -35,6 +35,6 @@ export function rateLimit(config: RateLimitConfig): MiddlewareHandler<{ Bindings
   };
 }
 
-// Preset configs
+
 export const strictRateLimit = rateLimit({ windowSeconds: 60, maxRequests: 10, keyPrefix: 'rate_limit_strict' });
 export const standardRateLimit = rateLimit({ windowSeconds: 60, maxRequests: 60, keyPrefix: 'rate_limit' });

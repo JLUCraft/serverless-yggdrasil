@@ -20,8 +20,6 @@ import { hashUUIDToInternalId } from '../utils/crypto';
 
 const app = new Hono<{ Bindings: Env }>();
 
-// Structured public key endpoint — returns JSON with public_key_pem.
-// Verifiers should use this instead of scraping HTML.
 app.get('/pubkey', async (c) => {
   const publicKey = await getUnionPublicKey(c.env.DB);
   if (!publicKey) {
@@ -32,7 +30,6 @@ app.get('/pubkey', async (c) => {
 
 app.use('/member/*', unionVerifyMiddleware);
 
-// Hello / status — allows the union hub to discover this member
 app.get('/member/', async (c) => {
   const serverList = await getServerList(c.env.DB);
   const privateKey = await getSecret(c.env.DB, 'private_key');
@@ -44,7 +41,6 @@ app.get('/member/', async (c) => {
   });
 });
 
-// Receive updated list of all union member servers
 app.post('/member/updatelist', async (c) => {
   const body = await c.req.json<{ servers: Array<{ code: string; name: string; url: string }> }>();
   if (!body.servers || !Array.isArray(body.servers)) {
@@ -55,14 +51,12 @@ app.post('/member/updatelist', async (c) => {
   return success({ synced: true, count: body.servers.length });
 });
 
-// Receive union shared private key for texture signing
 app.post('/member/updateprivatekey', async (c) => {
   const body = await c.req.json<{ private_key_version: number; private_key: string; public_key?: string }>();
   if (!body.private_key) {
     return error('private_key is required', 400);
   }
 
-  // Store as JSON bundle if public_key is provided, otherwise raw PEM for backwards compatibility
   const value = body.public_key
     ? JSON.stringify({ private_key: body.private_key, public_key: body.public_key })
     : body.private_key;
@@ -71,7 +65,6 @@ app.post('/member/updateprivatekey', async (c) => {
   return success({ updated: true });
 });
 
-// Receive backend key and union public key for OAuth2
 app.post('/member/updatebackendkey', async (c) => {
   const body = await c.req.json<{ backend_key: string; union_public_key: string }>();
   if (!body.backend_key) {
@@ -85,7 +78,6 @@ app.post('/member/updatebackendkey', async (c) => {
   return success({ updated: true });
 });
 
-// Trigger data sync — push local player profiles to union hub
 app.post('/member/sync', async (c) => {
   const unionEndpoint = c.env.MUA_UNION_ENDPOINT;
   if (!unionEndpoint) {
@@ -101,7 +93,6 @@ app.post('/member/sync', async (c) => {
   return success(result);
 });
 
-// Remap UUID — handles name/UUID collision cases across union members
 app.post('/member/remapuuid', async (c) => {
   const body = await c.req.json<{ from_uuid: string; to_uuid: string }>();
   if (!body.from_uuid || !body.to_uuid) {
@@ -116,12 +107,10 @@ app.post('/member/remapuuid', async (c) => {
   return success({ remapped: true });
 });
 
-// Update plugin — support auto-update of the union addon (no-op for serverless)
 app.post('/member/updateplugin', async (_c) => {
   return success({ status: 'noop', message: 'Plugin update not applicable for serverless deployment' });
 });
 
-// Diagnostic — allows union hub to verify this member's connectivity
 app.post('/member/diagnose', async (c) => {
   const unionEndpoint = c.env.MUA_UNION_ENDPOINT;
   const backendKey = await getBackendKey(c.env.DB);
@@ -138,7 +127,6 @@ app.post('/member/diagnose', async (c) => {
   });
 });
 
-// Query email — check if an email belongs to a member site player
 app.get('/member/queryemail', async (c) => {
   const email = c.req.query('email');
   if (!email) {
@@ -161,9 +149,6 @@ app.get('/member/queryemail', async (c) => {
   });
 });
 
-// ===== Public Union API (MUA standard format, machine-consumable) =====
-
-// Profile mapped by UUID (MUA standard format)
 app.get('/profile/mapped/byuuid/:uuid', async (c) => {
   const uuid = c.req.param('uuid');
   if (!uuid) return c.json({ error: 'UUID is required' }, 400);
@@ -195,7 +180,6 @@ app.get('/profile/mapped/byuuid/:uuid', async (c) => {
   return c.json(result);
 });
 
-// Profile mapped by name (MUA standard format)
 app.get('/profile/mapped/byname/:name', async (c) => {
   const name = c.req.param('name');
   if (!name) return c.json({ error: 'Name is required' }, 400);
@@ -227,7 +211,6 @@ app.get('/profile/mapped/byname/:name', async (c) => {
   return c.json(mapped);
 });
 
-// Skin by player name (MUA standard format — returns PNG)
 app.get('/skin/byname/:name', async (c) => {
   const name = c.req.param('name');
   if (!name) return error('Name is required', 400);
@@ -255,14 +238,13 @@ app.get('/skin/byname/:name', async (c) => {
         if (resp.ok) {
           return pngResponse(await resp.arrayBuffer());
         }
-      } catch { /* try next */ }
+      } catch {  }
     }
   }
 
   return error('Skin not found', 404);
 });
 
-// Skin by UUID (MUA standard format — returns PNG)
 app.get('/skin/byuuid/:uuid', async (c) => {
   const uuid = c.req.param('uuid');
   if (!uuid) return error('UUID is required', 400);
@@ -290,7 +272,7 @@ app.get('/skin/byuuid/:uuid', async (c) => {
         if (resp.ok) {
           return pngResponse(await resp.arrayBuffer());
         }
-      } catch { /* try next */ }
+      } catch {  }
     }
   }
 

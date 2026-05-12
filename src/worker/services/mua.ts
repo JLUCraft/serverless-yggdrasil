@@ -5,20 +5,15 @@ import { hashUUIDToInternalId } from '../utils/crypto';
 export interface MUAProfileResponse {
   id: string;
   name: string;
-  source: string;           // 皮肤站代码
-  sourceName: string;       // 皮肤站名称
+  source: string;
+  sourceName: string;
   skins: Array<{
     url: string;
     model?: string;
     metadata?: Record<string, unknown>;
   }>;
   capes?: Array<{ url: string }>;
-  /**
-   * Canonical club short-code.
-   * Outgoing profiles always expose this as `club_code`.
-   * `club` is retained only for backward-compat with
-   * remote sites that may still send the old field name.
-   */
+
   club?: string | null;
   club_code?: string | null;
 }
@@ -27,12 +22,7 @@ export interface MUAUnionMappedResponse {
   internal_id: number;
   uuid: string;
   name: string;
-  /**
-   * Canonical club short-code.
-   * Outgoing profiles always expose this as `club_code`.
-   * `club` is retained only for backward-compat with
-   * remote sites that may still send the old field name.
-   */
+
   club?: string | null;
   club_code?: string | null;
   backend_scopes: {
@@ -92,14 +82,14 @@ export async function getAllTrustedSites(db: D1Database): Promise<MUATrustedSite
   return results ?? [];
 }
 
-/** Constant-time string comparison to prevent timing side-channel attacks. */
+
 function constantTimeEqual(a: string, b: string): boolean {
   const len = Math.min(a.length, b.length);
   let result = 0;
   for (let i = 0; i < len; i++) {
     result |= a.charCodeAt(i) ^ b.charCodeAt(i);
   }
-  // If lengths differ, force failure without short-circuit
+
   result |= a.length ^ b.length;
   return result === 0;
 }
@@ -108,7 +98,7 @@ export async function verifyMUAAPIKey(db: D1Database, apiKey: string): Promise<b
   const config = await getMUAConfig(db);
   if (!config) return false;
 
-  // P0-4: Hash-only comparison — no plaintext fallback
+
   if (config.api_key_hash) {
     const encoder = new TextEncoder();
     const keyData = encoder.encode(apiKey);
@@ -177,11 +167,7 @@ function createTimeoutSignal(ms: number = DEFAULT_MUA_TIMEOUT_MS): AbortSignal {
   return controller.signal;
 }
 
-/**
- * Unwrap a remote JSON response that may be wrapped in the ApiSuccess
- * envelope {code, message, data}.  If the response is flat (no code/data
- * wrapper), return as-is; otherwise extract and return .data.
- */
+
 function unwrapRemoteResponse<T>(json: unknown): T | null {
   if (json && typeof json === 'object' && 'code' in json && 'data' in json) {
     return (json as { data: T }).data;
@@ -189,11 +175,11 @@ function unwrapRemoteResponse<T>(json: unknown): T | null {
   return json as T;
 }
 
-// ---- Endpoint helpers ----
-// Base site may be stored as root URL, /api/mua, or /api/union.
-// These helpers normalise before building query paths.
 
-/** Strip any known API suffix, returning the bare root URL. */
+
+
+
+
 export function joinEndpoint(baseUrl: string): string {
   let url = baseUrl.replace(/\/+$/, '');
   if (url.endsWith('/api/mua')) return url.slice(0, -'/api/mua'.length);
@@ -201,7 +187,7 @@ export function joinEndpoint(baseUrl: string): string {
   return url;
 }
 
-/** Ensure the base URL carries the /api/mua suffix. */
+
 export function muaEndpoint(baseUrl: string): string {
   let url = baseUrl.replace(/\/+$/, '');
   if (url.endsWith('/api/union')) url = url.slice(0, -'/api/union'.length);
@@ -209,7 +195,7 @@ export function muaEndpoint(baseUrl: string): string {
   return url;
 }
 
-/** Ensure the base URL carries the /api/union suffix. */
+
 export function unionEndpoint(baseUrl: string): string {
   let url = baseUrl.replace(/\/+$/, '');
   if (url.endsWith('/api/mua')) url = url.slice(0, -'/api/mua'.length);
@@ -217,7 +203,7 @@ export function unionEndpoint(baseUrl: string): string {
   return url;
 }
 
-// Query MUA Union API for cross-site player info (with auth)
+
 export async function queryMUAUnion(
   endpoint: string,
   uuid: string,
@@ -237,7 +223,7 @@ export async function queryMUAUnion(
   }
 }
 
-// Query MUA Union mapped profile by UUID
+
 export async function queryMUAUnionMapped(
   endpoint: string,
   uuid: string,
@@ -257,7 +243,7 @@ export async function queryMUAUnionMapped(
   }
 }
 
-// Query MUA Union mapped profile by player name
+
 export async function queryMUAUnionMappedByName(
   endpoint: string,
   name: string,
@@ -277,7 +263,7 @@ export async function queryMUAUnionMappedByName(
   }
 }
 
-// Query MUA Union API by player name
+
 export async function queryMUAUnionByName(
   endpoint: string,
   name: string,
@@ -297,7 +283,7 @@ export async function queryMUAUnionByName(
   }
 }
 
-// Build a MUA-compliant mapped profile response from local data
+
 export function buildMappedProfile(
   uuid: string,
   name: string,
@@ -319,31 +305,31 @@ export function buildMappedProfile(
   };
 }
 
-// Check if a UUID is from MUA (has binding in our DB or available via Union)
+
 export async function isMUAPlayer(
   db: D1Database,
   endpoint: string,
   uuid: string,
   apiKey?: string
 ): Promise<boolean> {
-  // Check local binding first
+
   const { results } = await db
     .prepare('SELECT id FROM mua_bindings WHERE mua_uuid = ? AND verified = 1')
     .bind(uuid)
     .all<{ id: number }>();
   if ((results ?? []).length > 0) return true;
 
-  // Fall back to Union API query
+
   const profile = await queryMUAUnion(endpoint, uuid, apiKey);
   return profile !== null;
 }
 
-// Get the site code that a UUID belongs to (for admission control)
+
 export async function resolveMUASource(
   db: D1Database,
   uuid: string
 ): Promise<{ source: string; sourceName: string } | null> {
-  // Check if it's a local user
+
   const { results: localProfiles } = await db
     .prepare(
       `SELECT pp.name FROM player_profiles pp
@@ -360,7 +346,7 @@ export async function resolveMUASource(
     }
   }
 
-  // Check MUA bindings
+
   const { results: bindings } = await db
     .prepare('SELECT source_site FROM mua_bindings WHERE mua_uuid = ? AND verified = 1')
     .bind(uuid)

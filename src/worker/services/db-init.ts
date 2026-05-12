@@ -219,7 +219,7 @@ export async function initDatabase(db: D1Database): Promise<void> {
     await recordMigration(db, migration.version, migration.name);
   }
 
-  // Seed initial config if missing
+
   const config = await db.prepare('SELECT id FROM mua_config LIMIT 1').first<{ id: number }>();
   if (!config) {
     await db

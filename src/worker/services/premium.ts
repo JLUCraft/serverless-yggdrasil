@@ -20,7 +20,7 @@ export interface MicrosoftProfile {
   microsoft_uuid: string;
 }
 
-// ===== OAuth Token Exchange =====
+
 
 export async function exchangeMicrosoftCode(
   code: string,
@@ -51,7 +51,7 @@ export async function exchangeMicrosoftCode(
   return data;
 }
 
-// ===== Xbox Live Authentication =====
+
 
 export async function authenticateXboxLive(accessToken: string): Promise<{ token: string; uhs: string } | null> {
   const resp = await fetch('https://user.auth.xboxlive.com/user/authenticate', {
@@ -79,7 +79,7 @@ export async function authenticateXboxLive(accessToken: string): Promise<{ token
   return { token: data.Token, uhs };
 }
 
-// ===== XSTS Authentication =====
+
 
 export async function authenticateXSTS(xboxToken: string): Promise<{ token: string; uhs: string } | null> {
   const resp = await fetch('https://xsts.auth.xboxlive.com/xsts/authorize', {
@@ -106,7 +106,7 @@ export async function authenticateXSTS(xboxToken: string): Promise<{ token: stri
   return { token: data.Token, uhs };
 }
 
-// ===== Minecraft Authentication =====
+
 
 export async function authenticateMinecraft(xstsToken: string, uhs: string): Promise<string | null> {
   const resp = await fetch('https://api.minecraftservices.com/authentication/login_with_xbox', {
@@ -122,7 +122,7 @@ export async function authenticateMinecraft(xstsToken: string, uhs: string): Pro
   return data.access_token ?? null;
 }
 
-// ===== Minecraft Profile =====
+
 
 export async function getMinecraftProfile(minecraftAccessToken: string): Promise<{ id: string; name: string } | null> {
   const resp = await fetch('https://api.minecraftservices.com/minecraft/profile', {
@@ -138,7 +138,7 @@ export async function getMinecraftProfile(minecraftAccessToken: string): Promise
   return data;
 }
 
-// ===== Complete Flow =====
+
 
 export async function verifyMicrosoftAccount(
   code: string,
@@ -146,23 +146,23 @@ export async function verifyMicrosoftAccount(
   clientSecret: string,
   redirectUri: string
 ): Promise<MicrosoftProfile | null> {
-  // Step 1: Exchange code for Microsoft token
+
   const msToken = await exchangeMicrosoftCode(code, clientId, clientSecret, redirectUri);
   if (!msToken) return null;
 
-  // Step 2: Xbox Live
+
   const xbox = await authenticateXboxLive(msToken.access_token);
   if (!xbox) return null;
 
-  // Step 3: XSTS
+
   const xsts = await authenticateXSTS(xbox.token);
   if (!xsts) return null;
 
-  // Step 4: Minecraft
+
   const mcToken = await authenticateMinecraft(xsts.token, xsts.uhs);
   if (!mcToken) return null;
 
-  // Step 5: Minecraft Profile
+
   const profile = await getMinecraftProfile(mcToken);
   if (!profile) return null;
 
@@ -173,7 +173,7 @@ export async function verifyMicrosoftAccount(
   };
 }
 
-// ===== Database Operations =====
+
 
 export async function getPremiumBindingByUser(db: D1Database, userId: number): Promise<PremiumBinding | null> {
   const row = await db
@@ -235,7 +235,7 @@ export async function deletePremiumBinding(db: D1Database, userId: number): Prom
   await db.prepare('DELETE FROM premium_bindings WHERE user_id = ?').bind(userId).run();
 }
 
-// Check if a Minecraft UUID is premium-bound (for admission control)
+
 export async function isPremiumPlayer(db: D1Database, minecraftUuid: string): Promise<boolean> {
   const row = await db
     .prepare('SELECT id FROM premium_bindings WHERE minecraft_uuid = ? AND verified = 1')

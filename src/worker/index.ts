@@ -10,6 +10,7 @@ import muaRoutes from './routes/mua';
 import adminRoutes from './routes/admin';
 import premiumRoutes from './routes/premium';
 import unionRoutes from './routes/union';
+import protoStationRoutes from './routes/proto-station';
 
 import { ConfigurationError } from './services/security';
 import { handleIncomingEmail } from './services/email-worker';
@@ -34,7 +35,6 @@ function addAliHeader(c: import('hono').Context<{ Bindings: Env }>, response: Re
   return next;
 }
 
-// Auto-init database on first request
 app.use(async (c, next) => {
   await initDatabase(c.env.DB);
   await next();
@@ -56,7 +56,6 @@ function getAllowedOrigins(env: Env): string[] {
   return DEFAULT_ALLOWED_ORIGINS;
 }
 
-// CORS — no longer reflects arbitrary origin; uses ALLOWED_ORIGINS whitelist.
 app.use('*', async (c, next) => {
   const allowed = getAllowedOrigins(c.env);
   const requestOrigin = c.req.header('origin');
@@ -84,10 +83,8 @@ app.use('*', async (c, next) => {
   return c.res;
 });
 
-// Health check
 app.get('/health', (_c) => success({ status: 'ok', version: '1.0.0' }));
 
-// Mount routes with rate limiting
 app.use('/api/auth/*', strictRateLimit);
 app.route('/api/auth', authRoutes);
 
@@ -109,7 +106,9 @@ app.route('/api/union', unionRoutes);
 app.use(`${YGGDRASIL_PATH}/*`, strictRateLimit);
 app.route(YGGDRASIL_PATH, yggdrasilRoutes);
 
-// Public Yggdrasil texture endpoint.
+app.use('/rpc/*', standardRateLimit);
+app.route('/rpc', protoStationRoutes);
+
 app.get('/textures/:hash', async (c) => {
   const hash = c.req.param('hash');
   const data = await c.env.SKINS.get(`textures/${hash}`);
@@ -120,12 +119,10 @@ app.get('/textures/:hash', async (c) => {
   return pngResponse(await data.arrayBuffer());
 });
 
-// Serve frontend SPA (fallback to static assets)
 app.get('/*', async (c) => {
   return addAliHeader(c, await c.env.ASSETS.fetch(c.req.raw));
 });
 
-// Email Worker handler
 export default {
   async fetch(request: Request, env: Env, _ctx: ExecutionContext): Promise<Response> {
     return app.fetch(request, env, _ctx);

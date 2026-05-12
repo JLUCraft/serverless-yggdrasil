@@ -36,6 +36,6 @@ export async function logAuthEvent(db: D1Database, entry: AuthLogEntry): Promise
       )
       .run();
   } catch {
-    // Silently ignore logging failures to avoid breaking auth flow
+
   }
 }

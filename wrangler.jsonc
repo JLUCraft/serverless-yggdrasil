@@ -45,10 +45,10 @@
     "EMAIL_VERIFICATION_TOKEN_BYTES": "16",
     "EMAIL_VERIFICATION_TTL_SECONDS": "86400"
   },
-  // Required secrets:
-  // - JWT_SECRET
-  // Optional secret:
-  // - MICROSOFT_CLIENT_SECRET
+
+
+
+
   "observability": {
     "enabled": false,
     "head_sampling_rate": 1,

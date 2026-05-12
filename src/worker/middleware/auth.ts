@@ -47,14 +47,11 @@ export const authMiddleware: MiddlewareHandler<{ Bindings: Env; Variables: Varia
   return undefined;
 };
 
-// ---------------------------------------------------------------------------
-// Yggdrasil token revocation helpers
-// ---------------------------------------------------------------------------
 
-/**
- * Extracts the `exp` field from the JWT body without verifying the signature.
- * Returns null when the token is malformed or the body segment cannot be parsed.
- */
+
+
+
+
 function extractJwtExpiration(accessToken: string): number | null {
   const parts = accessToken.split('.');
   if (parts.length !== 3) return null;
@@ -72,14 +69,7 @@ function extractJwtExpiration(accessToken: string): number | null {
   }
 }
 
-/**
- * Computes the TTL (in seconds) for a revocation marker KV key.
- *
- * - When the JWT `exp` is available and still in the future the TTL equals the
- *   remaining lifetime (bounded ≥ 1 to avoid zero-TTL KV rejection).
- * - Otherwise uses a conservative 86 400 s (24 h) default.
- * - The TTL is intentionally bounded — revoked tokens MUST eventually expire.
- */
+
 function computeRevokedTtlFromJwt(accessToken: string): number {
   const exp = extractJwtExpiration(accessToken);
   if (exp !== null) {
@@ -92,22 +82,18 @@ function computeRevokedTtlFromJwt(accessToken: string): number {
   return 86400;
 }
 
-/** Constructs the KV key for persisting a revocation marker. */
+
 function makeRevokedKey(accessToken: string): string {
   return `revoked_token:${accessToken}`;
 }
 
-// === Type-safe JSON parse helpers ===
+
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === 'object' && !Array.isArray(value);
 }
 
-/**
- * Parses a JSON string as a plain object.
- * Returns null when the input is not valid JSON or does not decode to a
- * non-array object.
- */
+
 function parseJsonObject(value: string): Record<string, unknown> | null {
   try {
     const obj: unknown = JSON.parse(value);
@@ -117,11 +103,7 @@ function parseJsonObject(value: string): Record<string, unknown> | null {
   }
 }
 
-/**
- * Parses a JSON string as cached Yggdrasil token data.
- * Returns null when the input is invalid, malformed, or missing required
- * fields, so callers can safely treat it as a cache miss.
- */
+
 function parseCachedTokenData(
   value: string,
 ): { uuid: string; name: string; userId: number } | null {
@@ -142,11 +124,7 @@ function parseCachedTokenData(
   }
 }
 
-/**
- * Parses a JSON-encoded array of token strings.
- * Returns an empty array when the input is invalid — callers must not crash
- * on garbage data in the KV index.
- */
+
 function parseTokenList(value: string): string[] {
   try {
     const arr: unknown = JSON.parse(value);
@@ -157,32 +135,32 @@ function parseTokenList(value: string): string[] {
   }
 }
 
-// ---------------------------------------------------------------------------
-// Yggdrasil accessToken lifecycle: store / verify / invalidate
-// ---------------------------------------------------------------------------
 
-// Yggdrasil accessToken 验证（用于游戏客户端）
+
+
+
+
 export async function verifyAccessToken(
   c: Context<{ Bindings: Env }>,
   accessToken: string
 ): Promise<{ uuid: string; name: string; userId: number } | null> {
-  // 0. Revocation check — MUST happen before any other lookup.
-  //    A cached "1" value means the token was explicitly invalidated and
-  //    MUST NOT be revived by the JWT fallback path below.
+
+
+
   const revokedKey = makeRevokedKey(accessToken);
   const revoked = await c.env.KV.get(revokedKey);
   if (revoked !== null) return null;
 
-  // 1. Fast path: try KV cache
+
   const cacheKey = `token:${accessToken}`;
   const cached = await c.env.KV.get(cacheKey);
   if (cached) {
     const cachedData = parseCachedTokenData(cached);
     if (cachedData !== null) return cachedData;
-    // Malformed cache entry — treat as miss and fall through to JWT path.
+
   }
 
-  // 2. KV miss — fall back to JWT verification + DB lookup
+
   let secret: string;
   try {
     secret = readJwtSecret(c.env);
@@ -196,24 +174,24 @@ export async function verifyAccessToken(
   );
   if (!payload) return null;
 
-  // 3. Validate expiry
+
   const now = Math.floor(Date.now() / 1000);
   if (payload.exp < now) return null;
 
-  // 4. Look up user in DB
+
   const user = await getUserById(c.env.DB, payload.uid);
   if (!user || user.uuid !== payload.sub) return null;
   if (user.status !== 'active') return null;
 
-  // 5. Resolve display name from profiles
+
   const profiles = await getPlayerProfiles(c.env.DB, user.id);
   const name = profiles[0]?.name ?? user.username;
 
   const result = { uuid: user.uuid, name, userId: user.id };
 
-  // 6. Repopulate KV with remaining TTL (floor to 60s minimum).
-  //    storeAccessToken will double-check the revocation marker so a token
-  //    invalidated between steps 0 and 6 still cannot be resurrected.
+
+
+
   const remainingTtl = Math.max(payload.exp - now, 60);
   await storeAccessToken(c, accessToken, result, remainingTtl);
 
@@ -226,14 +204,14 @@ export async function storeAccessToken(
   data: { uuid: string; name: string; userId: number },
   ttlSeconds: number = 86400
 ): Promise<void> {
-  // Guard: never cache a token that has been explicitly revoked.
+
   const revokedKey = makeRevokedKey(accessToken);
   const revoked = await c.env.KV.get(revokedKey);
   if (revoked !== null) return;
 
   const cacheKey = `token:${accessToken}`;
   await c.env.KV.put(cacheKey, JSON.stringify(data), { expirationTtl: ttlSeconds });
-  // Also index by user for bulk invalidation
+
   const userIndexKey = `user_tokens:${data.userId}`;
   const existing = await c.env.KV.get(userIndexKey);
   const tokens = existing ? parseTokenList(existing) : [];
@@ -247,16 +225,16 @@ export async function invalidateAccessToken(
   c: Context<{ Bindings: Env }>,
   accessToken: string
 ): Promise<void> {
-  // 1. Persist a revocation marker so verifyAccessToken / storeAccessToken
-  //    will reject the token regardless of KV cache state.
+
+
   const revokedKey = makeRevokedKey(accessToken);
   const revocationTtl = computeRevokedTtlFromJwt(accessToken);
   await c.env.KV.put(revokedKey, '1', { expirationTtl: revocationTtl });
 
-  // 2. Remove the cached fast-path entry.
+
   const cacheKey = `token:${accessToken}`;
 
-  // 3. Clean up the user-token index so stale entries do not persist.
+
   const cached = await c.env.KV.get(cacheKey);
   if (cached) {
     const data = parseCachedTokenData(cached);
@@ -286,11 +264,11 @@ export async function invalidateAllUserTokens(
 
   const tokens = parseTokenList(existing);
   for (const token of tokens) {
-    // Each call independently sets the revocation marker and cleans up the
-    // index incrementally so the KV state stays consistent.
+
+
     await invalidateAccessToken(c, token);
   }
-  // Safety net: remove the user-level index if it wasn't already removed by
-  // the last invalidateAccessToken call above.
+
+
   await c.env.KV.delete(userIndexKey);
 }

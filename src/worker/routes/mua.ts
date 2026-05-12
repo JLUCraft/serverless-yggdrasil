@@ -29,7 +29,7 @@ async function resolveMUAStatus(
   return null;
 }
 
-// MUA API Key 认证中间件
+
 async function muaAuth(c: import('hono').Context<{ Bindings: Env }>, next: () => Promise<void>): Promise<Response | void> {
   const apiKey = c.req.header('X-MUA-API-Key');
   if (!apiKey) {
@@ -45,7 +45,7 @@ async function muaAuth(c: import('hono').Context<{ Bindings: Env }>, next: () =>
   return undefined;
 }
 
-// Bind MUA account
+
 app.post('/bind', authMiddleware, async (c) => {
   const jwt = c.get('user');
   const body = await c.req.json<{
@@ -60,13 +60,13 @@ app.post('/bind', authMiddleware, async (c) => {
 
   const db = c.env.DB;
 
-  // Check if source site is trusted
+
   const trusted = await muaService.getTrustedSite(db, body.source_site);
   if (!trusted) {
     return error(`Site ${body.source_site} is not in trusted MUA list`, 403);
   }
 
-  // Check if binding already exists
+
   const existing = await muaService.getMUABindingBySource(db, body.source_site, body.source_uuid);
   if (existing) {
     return error('This MUA account is already bound', 409);
@@ -74,7 +74,7 @@ app.post('/bind', authMiddleware, async (c) => {
 
   const binding = await muaService.createMUABinding(db, jwt.uid, body.mua_uuid, body.source_site, body.source_uuid);
 
-  // Auto-verify if source is trusted MUA union endpoint
+
   const profile = await muaService.queryMUAUnion(trusted.endpoint, body.mua_uuid);
   if (profile) {
     await muaService.verifyMUABinding(db, binding.id);
@@ -88,7 +88,7 @@ app.post('/bind', authMiddleware, async (c) => {
   });
 });
 
-// List my MUA bindings
+
 app.get('/bindings', authMiddleware, async (c) => {
   const jwt = c.get('user');
   const db = c.env.DB;
@@ -105,7 +105,7 @@ app.get('/bindings', authMiddleware, async (c) => {
   );
 });
 
-// Query MUA profile by UUID (public, no auth required for basic profile)
+
 app.get('/profile/:uuid', async (c) => {
   const uuid = c.req.param('uuid');
   if (!uuid) {
@@ -114,11 +114,11 @@ app.get('/profile/:uuid', async (c) => {
   const db = c.env.DB;
   const baseUrl = getBaseUrl(c);
 
-  // Check if caller has a valid MUA API key (machine-to-machine)
+
   const apiKey = c.req.header('X-MUA-API-Key');
   const isMachine = apiKey ? await muaService.verifyMUAAPIKey(db, apiKey) : false;
 
-  // Check local first
+
   const localProfile = await userService.getProfileByUUID(db, uuid);
   if (localProfile) {
     const config = await muaService.getMUAConfig(db);
@@ -140,7 +140,7 @@ app.get('/profile/:uuid', async (c) => {
     return isMachine ? c.json(result) : success(result);
   }
 
-  // Query trusted sites
+
   const trustedSites = await muaService.getAllTrustedSites(db);
   for (const site of trustedSites) {
     const profile = await muaService.queryMUAUnion(site.endpoint, uuid);
@@ -164,7 +164,7 @@ app.get('/profile/:uuid', async (c) => {
   return error('MUA profile not found', 404);
 });
 
-// Query MUA profile by name (public)
+
 app.get('/profile/name/:name', async (c) => {
   const name = c.req.param('name');
   if (!name) {
@@ -173,11 +173,11 @@ app.get('/profile/name/:name', async (c) => {
   const db = c.env.DB;
   const baseUrl = getBaseUrl(c);
 
-  // Check if caller has a valid MUA API key (machine-to-machine)
+
   const apiKey = c.req.header('X-MUA-API-Key');
   const isMachine = apiKey ? await muaService.verifyMUAAPIKey(db, apiKey) : false;
 
-  // Check local first
+
   const localProfile = await userService.getProfileByName(db, name);
   if (localProfile) {
     const config = await muaService.getMUAConfig(db);
@@ -199,7 +199,7 @@ app.get('/profile/name/:name', async (c) => {
     return isMachine ? c.json(result) : success(result);
   }
 
-  // Query trusted sites
+
   const trustedSites = await muaService.getAllTrustedSites(db);
   for (const site of trustedSites) {
     const profile = await muaService.queryMUAUnionByName(site.endpoint, name);
@@ -223,7 +223,7 @@ app.get('/profile/name/:name', async (c) => {
   return error('MUA profile not found', 404);
 });
 
-// Check if player is MUA member (for instance admission control)
+
 app.get('/check/:uuid', async (c) => {
   const uuid = c.req.param('uuid');
   if (!uuid) {
@@ -240,11 +240,11 @@ app.get('/check/:uuid', async (c) => {
   });
 });
 
-// ===== S2S (server-to-server) endpoints =====
-// These return flat JSON without success() wrapper for machine consumption
-// Used by federated-server and other union members for cross-site profile queries
 
-// S2S: Query MUA profile by UUID (flat JSON, snake_case fields)
+
+
+
+
 app.get('/s2s/profile/:uuid', muaAuth, async (c) => {
   const uuid = c.req.param('uuid');
   if (!uuid) {
@@ -288,7 +288,7 @@ app.get('/s2s/profile/:uuid', muaAuth, async (c) => {
   return c.json({ error: 'Profile not found' }, 404);
 });
 
-// S2S: Query MUA profile by name (flat JSON, snake_case fields)
+
 app.get('/s2s/profile/name/:name', muaAuth, async (c) => {
   const name = c.req.param('name');
   if (!name) {
@@ -332,7 +332,7 @@ app.get('/s2s/profile/name/:name', muaAuth, async (c) => {
   return c.json({ error: 'Profile not found' }, 404);
 });
 
-// S2S: Check if player is MUA member (flat JSON)
+
 app.get('/s2s/check/:uuid', muaAuth, async (c) => {
   const uuid = c.req.param('uuid');
   if (!uuid) {
@@ -349,9 +349,9 @@ app.get('/s2s/check/:uuid', muaAuth, async (c) => {
   });
 });
 
-// ===== Union API (需要 API Key 认证) =====
 
-// Union API: Return profile with site code for a UUID
+
+
 app.get('/union/profile/:uuid', muaAuth, async (c) => {
   const uuid = c.req.param('uuid');
   if (!uuid) {
@@ -360,7 +360,7 @@ app.get('/union/profile/:uuid', muaAuth, async (c) => {
   const db = c.env.DB;
   const baseUrl = getBaseUrl(c);
 
-  // Check local profiles
+
   const localProfile = await userService.getProfileByUUID(db, uuid);
   if (localProfile) {
     const config = await muaService.getMUAConfig(db);
@@ -382,7 +382,7 @@ app.get('/union/profile/:uuid', muaAuth, async (c) => {
     return success(result);
   }
 
-  // Check MUA bindings and forward
+
   const { results } = await db
     .prepare('SELECT * FROM mua_bindings WHERE mua_uuid = ? AND verified = 1')
     .bind(uuid)
@@ -416,7 +416,7 @@ app.get('/union/profile/:uuid', muaAuth, async (c) => {
   return error('Profile not found', 404);
 });
 
-// Union API: Mapped by UUID (返回 MUA 标准的 mapped profile 格式)
+
 app.get('/union/profile/mapped/byuuid/:uuid', muaAuth, async (c) => {
   const uuid = c.req.param('uuid');
   if (!uuid) {
@@ -429,11 +429,11 @@ app.get('/union/profile/mapped/byuuid/:uuid', muaAuth, async (c) => {
     return error('Profile not found', 404);
   }
 
-  // Get profile name
+
   const localProfile = await userService.getProfileByUUID(db, uuid);
   const name = localProfile?.name ?? 'unknown';
 
-  // Check MUA bindings for backend_scopes
+
   const { results: bindings } = await db
     .prepare('SELECT source_site FROM mua_bindings WHERE mua_uuid = ? AND verified = 1')
     .bind(uuid)
@@ -457,7 +457,7 @@ app.get('/union/profile/mapped/byuuid/:uuid', muaAuth, async (c) => {
   return success(mapped);
 });
 
-// Union API: Mapped by name
+
 app.get('/union/profile/mapped/byname/:name', muaAuth, async (c) => {
   const name = c.req.param('name');
   if (!name) {
@@ -465,7 +465,7 @@ app.get('/union/profile/mapped/byname/:name', muaAuth, async (c) => {
   }
   const db = c.env.DB;
 
-  // Find local profile by name first
+
   const localProfile = await userService.getProfileByName(db, name);
   if (!localProfile) {
     return error('Profile not found', 404);
@@ -474,7 +474,7 @@ app.get('/union/profile/mapped/byname/:name', muaAuth, async (c) => {
   const source = await muaService.resolveMUASource(db, localProfile.uuid);
   const siteCode = source?.source ?? 'unknown';
 
-  // Check MUA bindings for backend_scopes
+
   const { results: bindings } = await db
     .prepare('SELECT source_site FROM mua_bindings WHERE mua_uuid = ? AND verified = 1')
     .bind(localProfile.uuid)
@@ -498,7 +498,7 @@ app.get('/union/profile/mapped/byname/:name', muaAuth, async (c) => {
   return success(mapped);
 });
 
-// Union API: Get skin image by player name (requires MUA API key for union S2S).
+
 app.get('/union/skin/byname/:name', muaAuth, async (c) => {
   const name = c.req.param('name');
   if (!name) {
@@ -506,7 +506,7 @@ app.get('/union/skin/byname/:name', muaAuth, async (c) => {
   }
   const db = c.env.DB;
 
-  // Find local profile
+
   const localProfile = await userService.getProfileByName(db, name);
   if (localProfile?.skin_texture_id) {
     const texture = await skinService.getTextureById(db, localProfile.skin_texture_id);
@@ -518,7 +518,7 @@ app.get('/union/skin/byname/:name', muaAuth, async (c) => {
     }
   }
 
-  // Try trusted sites
+
   const trustedSites = await muaService.getAllTrustedSites(db);
   for (const site of trustedSites) {
     const profile = await muaService.queryMUAUnionByName(site.endpoint, name);
@@ -531,7 +531,7 @@ app.get('/union/skin/byname/:name', muaAuth, async (c) => {
           return pngResponse(await resp.arrayBuffer());
         }
       } catch {
-        // Continue to next site
+
       }
     }
   }
@@ -539,7 +539,7 @@ app.get('/union/skin/byname/:name', muaAuth, async (c) => {
   return error('Skin not found', 404);
 });
 
-// Union API: Get skin image by UUID (requires MUA API key for union S2S).
+
 app.get('/union/skin/byuuid/:uuid', muaAuth, async (c) => {
   const uuid = c.req.param('uuid');
   if (!uuid) {
@@ -547,7 +547,7 @@ app.get('/union/skin/byuuid/:uuid', muaAuth, async (c) => {
   }
   const db = c.env.DB;
 
-  // Find local profile
+
   const localProfile = await userService.getProfileByUUID(db, uuid);
   if (localProfile?.skin_texture_id) {
     const texture = await skinService.getTextureById(db, localProfile.skin_texture_id);
@@ -559,7 +559,7 @@ app.get('/union/skin/byuuid/:uuid', muaAuth, async (c) => {
     }
   }
 
-  // Try trusted sites
+
   const trustedSites = await muaService.getAllTrustedSites(db);
   for (const site of trustedSites) {
     const profile = await muaService.queryMUAUnion(site.endpoint, uuid);
@@ -572,7 +572,7 @@ app.get('/union/skin/byuuid/:uuid', muaAuth, async (c) => {
           return pngResponse(await resp.arrayBuffer());
         }
       } catch {
-        // Continue to next site
+
       }
     }
   }
@@ -580,9 +580,9 @@ app.get('/union/skin/byuuid/:uuid', muaAuth, async (c) => {
   return error('Skin not found', 404);
 });
 
-// ===== 管理端点 (Admin only) =====
 
-// List trusted MUA sites
+
+
 app.get('/trusted-sites', authMiddleware, requireRole('admin'), async (c) => {
   const db = c.env.DB;
   const sites = await muaService.getAllTrustedSites(db);
@@ -594,7 +594,7 @@ app.get('/trusted-sites', authMiddleware, requireRole('admin'), async (c) => {
   })));
 });
 
-// Add trusted MUA site
+
 app.post('/trusted-sites', authMiddleware, requireRole('admin'), async (c) => {
   const body = await c.req.json<{
     site_code: string;
@@ -609,7 +609,7 @@ app.post('/trusted-sites', authMiddleware, requireRole('admin'), async (c) => {
 
   const db = c.env.DB;
 
-  // Hash API key if provided
+
   let apiKeyHash: string | null = null;
   if (body.api_key) {
     const encoder = new TextEncoder();
@@ -632,7 +632,7 @@ app.post('/trusted-sites', authMiddleware, requireRole('admin'), async (c) => {
   return success({ added: true });
 });
 
-// Get MUA config (admin only, api_key returned as boolean configured indicator)
+
 app.get('/config', authMiddleware, requireRole('admin'), async (c) => {
   const db = c.env.DB;
   const config = await muaService.getStoredConfig(db);
@@ -650,7 +650,7 @@ app.get('/config', authMiddleware, requireRole('admin'), async (c) => {
   });
 });
 
-// Update MUA config (site code, api_key, etc.)
+
 app.patch('/config', authMiddleware, requireRole('admin'), async (c) => {
   const body = await c.req.json<{
     site_code?: string;
@@ -678,7 +678,7 @@ app.patch('/config', authMiddleware, requireRole('admin'), async (c) => {
     values.push(body.site_name);
   }
   if (body.api_key !== undefined) {
-    // P0-4: Never store plaintext — only persist the hash
+
     if (body.api_key) {
       const encoder = new TextEncoder();
       const hashBuffer = await crypto.subtle.digest('SHA-256', encoder.encode(body.api_key));
@@ -689,7 +689,7 @@ app.patch('/config', authMiddleware, requireRole('admin'), async (c) => {
       updates.push('api_key_hash = ?');
       values.push(null);
     }
-    // Always clear the plaintext column
+
     updates.push('api_key = NULL');
   }
   if (body.union_endpoint !== undefined) {

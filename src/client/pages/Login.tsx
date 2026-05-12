@@ -35,7 +35,7 @@ export default function Login() {
 
   return (
     <div class="min-h-screen w-full flex flex-col lg:flex-row bg-base-100">
-      {/* Left Branding Side */}
+      {}
       <div class="hidden lg:flex lg:w-1/2 relative bg-primary/5 flex-col justify-between p-12 border-r border-base-300">
         <div class="absolute inset-0 overflow-hidden pointer-events-none">
           <div class="absolute -top-[20%] -left-[10%] w-[80%] h-[80%] bg-primary/15 rounded-full blur-[120px]"></div>
@@ -55,10 +55,10 @@ export default function Login() {
         </div>
       </div>
 
-      {/* Right Form Side */}
+      {}
       <div class="flex-1 flex items-center justify-center p-6 sm:p-10 animate-fade-in">
         <div class="w-full max-w-sm space-y-6">
-          {/* Mobile logo */}
+          {}
           <div class="lg:hidden flex items-center gap-3 mb-2">
             <img src={siteConfig.logoUrl} alt={siteConfig.shortName} class="w-8 h-8 rounded object-contain" />
             <span class="font-bold text-primary">{siteConfig.shortName}</span>

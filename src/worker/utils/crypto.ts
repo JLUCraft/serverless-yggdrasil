@@ -104,10 +104,7 @@ export function generateToken(byteLength: number): string {
   return bytesToHex(randomBytes(byteLength));
 }
 
-/**
- * Deterministic internal_id from UUID for MUA mapped profile responses.
- * Used for data privacy — masks the real UUID behind a stable integer.
- */
+
 export function hashUUIDToInternalId(uuid: string): number {
   let hash = 0;
   for (let i = 0; i < uuid.length; i++) {
@@ -200,7 +197,7 @@ export async function rsaPkcs1Sha256Sign(
 ): Promise<Uint8Array | null> {
   try {
     const der = pemPrivateToDer(privateKeyPem);
-    // Try PKCS#8 first, then PKCS#1
+
     let key: CryptoKey;
     try {
       key = await crypto.subtle.importKey(
@@ -211,8 +208,8 @@ export async function rsaPkcs1Sha256Sign(
         ['sign']
       );
     } catch {
-      // Cloudflare Workers may not support PKCS#1 raw import;
-      // consumers should supply PKCS#8 formatted keys.
+
+
       return null;
     }
     const sig = await crypto.subtle.sign('RSASSA-PKCS1-v1_5', key, message);

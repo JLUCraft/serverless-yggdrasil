@@ -8,6 +8,7 @@ export default defineConfig({
   build: {
     outDir: 'public',
     emptyOutDir: true,
+    chunkSizeWarningLimit: 700,
   },
   server: {
     proxy: {

@@ -26,7 +26,7 @@ export default function Rail(props: RailProps) {
 
   return (
     <aside class="glass-panel lg:sticky lg:top-[62px] overflow-hidden">
-      {/* Mobile toggle — always visible on small screens */}
+      {}
       <button
         class="lg:hidden w-full flex items-center justify-between px-4 py-3 text-left"
         onClick={() => setExpanded((v) => !v)}
@@ -44,7 +44,7 @@ export default function Rail(props: RailProps) {
         </svg>
       </button>
 
-      {/* Sidebar body — always visible on desktop, toggled on mobile */}
+      {}
       <div class={`${expanded() ? 'block' : 'hidden'} lg:block p-4 lg:p-5 border-t border-base-200 lg:border-t-0 space-y-4`}>
         <div class="hidden lg:block">
           <h2 class="text-xs font-bold tracking-widest text-base-content/50 uppercase">{props.title}</h2>

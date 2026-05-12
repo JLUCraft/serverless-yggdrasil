@@ -9,7 +9,7 @@ import { getBaseUrl } from '../utils/request';
 
 const app = new Hono<{ Bindings: Env; Variables: Variables }>();
 
-// Step 1: Get Microsoft OAuth URL
+
 app.get('/bind', authMiddleware, async (c) => {
   const clientId = c.env.MICROSOFT_CLIENT_ID;
   if (!clientId) {
@@ -20,7 +20,7 @@ app.get('/bind', authMiddleware, async (c) => {
   const redirectUri = `${baseUrl}/api/premium/callback`;
 
   const state = crypto.randomUUID();
-  // Store state in KV with user association (short TTL)
+
   const jwt = c.get('user');
   await c.env.KV.put(`ms_oauth_state:${state}`, JSON.stringify({ uid: jwt.uid, redirect: baseUrl }), { expirationTtl: 300 });
 
@@ -30,7 +30,7 @@ app.get('/bind', authMiddleware, async (c) => {
   return success({ auth_url: authUrl });
 });
 
-// Step 2: Microsoft OAuth callback
+
 app.get('/callback', async (c) => {
   const code = c.req.query('code');
   const state = c.req.query('state');
@@ -45,7 +45,7 @@ app.get('/callback', async (c) => {
     return error('Missing code or state', 400);
   }
 
-  // Verify state
+
   const stateData = await c.env.KV.get(`ms_oauth_state:${state}`);
   if (!stateData) {
     return error('Invalid or expired state', 400);
@@ -63,19 +63,19 @@ app.get('/callback', async (c) => {
   const baseUrl = getBaseUrl(c);
   const redirectUri = `${baseUrl}/api/premium/callback`;
 
-  // Complete verification chain
+
   const profile = await premiumService.verifyMicrosoftAccount(code, clientId, clientSecret, redirectUri);
   if (!profile) {
     return error('Failed to verify Microsoft account. Make sure you own a legitimate Minecraft Java Edition copy.', 403);
   }
 
-  // Check if this Minecraft UUID is already bound to another user
+
   const existing = await premiumService.getPremiumBindingByMinecraftUUID(c.env.DB, profile.id);
   if (existing && existing.user_id !== uid) {
     return error('This Microsoft/Minecraft account is already bound to another user', 409);
   }
 
-  // Also exchange tokens for storage
+
   const tokens = await premiumService.exchangeMicrosoftCode(code, clientId, clientSecret, redirectUri);
 
   const binding = await premiumService.createPremiumBinding(c.env.DB, uid, profile, tokens ?? undefined);
@@ -87,7 +87,7 @@ app.get('/callback', async (c) => {
   });
 });
 
-// Check binding status
+
 app.get('/status', authMiddleware, async (c) => {
   const jwt = c.get('user');
   const binding = await premiumService.getPremiumBindingByUser(c.env.DB, jwt.uid);
@@ -104,14 +104,14 @@ app.get('/status', authMiddleware, async (c) => {
   });
 });
 
-// Unbind premium account
+
 app.post('/unbind', authMiddleware, async (c) => {
   const jwt = c.get('user');
   await premiumService.deletePremiumBinding(c.env.DB, jwt.uid);
   return success({ unbound: true });
 });
 
-// Public: Check if a UUID is premium (for admission control)
+
 app.get('/check/:uuid', async (c) => {
   const uuid = c.req.param('uuid');
   if (!uuid) {
@@ -122,7 +122,7 @@ app.get('/check/:uuid', async (c) => {
   return success({ uuid, is_premium: isPremium });
 });
 
-// Yggdrasil-style authenticate with Microsoft (alternative login)
+
 app.post('/authenticate', async (c) => {
   const body = await c.req.json<{ code: string }>();
   if (!body.code) {
@@ -143,13 +143,13 @@ app.post('/authenticate', async (c) => {
     return error('Failed to verify Microsoft account', 403);
   }
 
-  // Find or create user by Minecraft UUID
+
   const db = c.env.DB;
   const secret = readJwtSecret(c.env);
   let binding = await premiumService.getPremiumBindingByMinecraftUUID(db, profile.id);
 
   if (!binding) {
-    // Auto-register a guest user bound to this premium account
+
     const user = await userService.createUser(db, {
       username: profile.name,
       role: 'guest',

@@ -5,6 +5,7 @@ dist/
 dist-ssr/
 /public/
 *.local
+.node-localstorage*
 .dev.vars
 .wrangler/
 *.log

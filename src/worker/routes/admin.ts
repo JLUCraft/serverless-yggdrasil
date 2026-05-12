@@ -7,7 +7,7 @@ import { success, error } from '../utils/response';
 
 const app = new Hono<{ Bindings: Env; Variables: Variables }>();
 
-// List all users (admin only)
+
 app.get('/users', authMiddleware, requireRole('admin'), async (c) => {
   const db = c.env.DB;
   const limit = Math.min(parseInt(c.req.query('limit') ?? '50', 10), 200);
@@ -31,7 +31,7 @@ app.get('/users', authMiddleware, requireRole('admin'), async (c) => {
   return success(results ?? []);
 });
 
-// Get user detail (admin only)
+
 app.get('/users/:uuid', authMiddleware, requireRole('admin'), async (c) => {
   const uuid = c.req.param('uuid');
   const db = c.env.DB;
@@ -60,7 +60,7 @@ app.get('/users/:uuid', authMiddleware, requireRole('admin'), async (c) => {
   });
 });
 
-// Update user role/status (admin only)
+
 app.patch('/users/:uuid', authMiddleware, requireRole('admin'), async (c) => {
   const uuid = c.req.param('uuid');
   const body = await c.req.json<{

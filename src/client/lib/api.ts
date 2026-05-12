@@ -112,164 +112,7 @@ export async function loadAccount(): Promise<Identity | null> {
   return lookup;
 }
 
-let seed = 2;
-
-let mockProfiles: Profile[] = [
-  { id: 'prof-1', name: 'TestUser', model: 'default', skin: null, cape: null },
-];
-
-let mockTextures: Texture[] = [];
-
-let mockUser: User = {
-  uuid: 'mock-uuid-1234',
-  username: 'testuser',
-  email: 'test@jlu.edu.cn',
-  email_verified: true,
-  role: 'admin',
-  status: 'active',
-  club: 'JLUCraft',
-  created_at: 1714156800,
-  profiles: mockProfiles.map(({ id, name, model }) => ({ id, name, model })),
-};
-
-let mockUsers: User[] = [mockUser];
-
-let mockBridge: Bridge = {
-  site_code: siteConfig.shortName.toLowerCase(),
-  site_name: siteConfig.siteSubtitle,
-  api_key: null,
-  union_endpoint: '',
-  enabled: true,
-};
-
-let mockSites: Site[] = [];
-
-const isMock = () => import.meta.env.DEV;
-
-function syncMockUser() {
-  mockUser = {
-    ...mockUser,
-    profiles: mockProfiles.map(({ id, name, model }) => ({ id, name, model })),
-  };
-  mockUsers = mockUsers.map((entry) => (entry.uuid === mockUser.uuid ? mockUser : entry));
-}
-
-function nextId(prefix: string): string {
-  const value = seed;
-  seed += 1;
-  return `${prefix}-${value}`;
-}
-
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
-  if (isMock()) {
-    if (path === '/api/auth/me') {
-      return { data: mockUser } as T;
-    }
-    if (path === '/api/skin/profiles' && (!options.method || options.method === 'GET')) {
-      return { data: mockProfiles } as T;
-    }
-    if (path === '/api/skin/textures' && (!options.method || options.method === 'GET')) {
-      return { data: mockTextures } as T;
-    }
-    if (path === '/api/skin/profiles' && options.method === 'POST') {
-      const payload = JSON.parse(String(options.body ?? '{}')) as { name: string; model?: Shape };
-      const profile: Profile = {
-        id: nextId('prof'),
-        name: payload.name,
-        model: String(payload.model),
-        skin: null,
-        cape: null,
-      };
-      mockProfiles = [...mockProfiles, profile];
-      syncMockUser();
-      return { data: { id: profile.id, name: profile.name, model: profile.model } } as T;
-    }
-    if (path === '/api/skin/upload' && options.method === 'POST') {
-      const form = options.body as FormData;
-      const type = String(form.get('type')) as TextureKind;
-      const texture: Texture = {
-        uuid: nextId('tex'),
-        hash: nextId('hash'),
-        type,
-        url: '/logo.png',
-      };
-      mockTextures = [texture, ...mockTextures];
-      return { data: texture } as T;
-    }
-    if (path.startsWith('/api/skin/textures/') && options.method === 'DELETE') {
-      const uuid = path.split('/').pop();
-      const used = mockProfiles.some((entry) => entry.skin?.uuid === uuid || entry.cape?.uuid === uuid);
-      if (used) {
-        throw new Error('Texture is in use and cannot be deleted');
-      }
-      mockTextures = mockTextures.filter((texture) => texture.uuid !== uuid);
-      return { data: { deleted: true } } as T;
-    }
-    if (path.startsWith('/api/skin/profiles/') && path.endsWith('/textures') && options.method === 'POST') {
-      const profileId = path.split('/')[4];
-      const payload = JSON.parse(String(options.body ?? '{}')) as {
-        skin_texture_uuid?: string;
-        cape_texture_uuid?: string;
-        model?: Shape;
-      };
-      mockProfiles = mockProfiles.map((entry) => {
-        if (entry.id !== profileId) {
-          return entry;
-        }
-        const skin = payload.skin_texture_uuid
-          ? mockTextures.find((texture) => texture.uuid === payload.skin_texture_uuid)
-          : undefined;
-        const cape = payload.cape_texture_uuid
-          ? mockTextures.find((texture) => texture.uuid === payload.cape_texture_uuid)
-          : undefined;
-        if (payload.skin_texture_uuid && !skin) {
-          throw new Error('Invalid skin texture');
-        }
-        if (payload.cape_texture_uuid && !cape) {
-          throw new Error('Invalid cape texture');
-        }
-        return {
-          ...entry,
-          model: payload.model ?? entry.model,
-          skin: skin ?? entry.skin,
-          cape: cape ?? entry.cape,
-        };
-      });
-      syncMockUser();
-      return { data: { updated: true } } as T;
-    }
-    if (path === '/api/premium/status') {
-      return { data: { bound: false } } as T;
-    }
-    if (path === '/api/admin/users') {
-      return { data: mockUsers } as T;
-    }
-    if (path.startsWith('/api/admin/users/') && options.method === 'PATCH') {
-      const userId = path.split('/').pop();
-      const payload = JSON.parse(String(options.body ?? '{}')) as { role: Role };
-      mockUsers = mockUsers.map((entry) => (entry.uuid === userId ? { ...entry, role: payload.role } : entry));
-      mockUser = mockUsers.find((entry) => entry.uuid === mockUser.uuid) ?? mockUser;
-      return { data: { updated: true } } as T;
-    }
-    if (path === '/api/mua/config' && (!options.method || options.method === 'GET')) {
-      return { data: mockBridge } as T;
-    }
-    if (path === '/api/mua/config' && options.method === 'PATCH') {
-      const payload = JSON.parse(String(options.body ?? '{}')) as Partial<Bridge>;
-      mockBridge = { ...mockBridge, ...payload };
-      return { data: mockBridge } as T;
-    }
-    if (path === '/api/mua/trusted-sites' && (!options.method || options.method === 'GET')) {
-      return { data: mockSites } as T;
-    }
-    if (path === '/api/mua/trusted-sites' && options.method === 'POST') {
-      const payload = JSON.parse(String(options.body ?? '{}')) as Omit<Site, 'enabled'>;
-      const site: Site = { ...payload, enabled: true };
-      mockSites = [...mockSites, site];
-      return { data: site } as T;
-    }
-  }
-
   const url = `${API_BASE}${path}`;
   const headers: Record<string, string> = {
     ...((options.headers as Record<string, string>) || {}),
@@ -299,49 +142,26 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
 
 export const api = {
   auth: {
-    login: (username: string, password: string) => {
-      if (isMock()) {
-        return Promise.resolve({ data: { token: 'mock-token', user: mockUser } });
-      }
-      return request<{ data: { token: string; user: { uuid: string; username: string; role: Role; email_verified: boolean } } }>('/api/auth/login', {
+    login: (username: string, password: string) =>
+      request<{ data: { token: string; user: { uuid: string; username: string; role: Role; email_verified: boolean } } }>('/api/auth/login', {
         method: 'POST',
         body: JSON.stringify({ username, password }),
-      });
-    },
-    registerInitiate: (username: string, email: string) => {
-      if (isMock()) {
-        return Promise.resolve({
-          data: {
-            message: `Please send an email to verify@jlucraft.com with token`,
-            recipient: `verify@jlucraft.com`,
-            token: crypto.randomUUID().replaceAll('-', ''),
-            expires_in: 86400,
-          },
-        });
-      }
-      return request<{ data: { message: string; recipient: string; token: string; expires_in: number } }>('/api/auth/register/initiate', {
+      }),
+    registerInitiate: (username: string, email: string) =>
+      request<{ data: { message: string; recipient: string; token: string; expires_in: number } }>('/api/auth/register/initiate', {
         method: 'POST',
         body: JSON.stringify({ username, email }),
-      });
-    },
-    registerComplete: (username: string, password: string, email: string, verificationToken: string) => {
-      if (isMock()) {
-        return Promise.resolve({ data: { token: 'mock-token', user: mockUser } });
-      }
-      return request<{ data: { token: string; user: { uuid: string; username: string; role: Role; email_verified: boolean } } }>('/api/auth/register/complete', {
+      }),
+    registerComplete: (username: string, password: string, email: string, verificationToken: string) =>
+      request<{ data: { token: string; user: { uuid: string; username: string; role: Role; email_verified: boolean } } }>('/api/auth/register/complete', {
         method: 'POST',
         body: JSON.stringify({ username, password, email, verification_token: verificationToken }),
-      });
-    },
-    register: (username: string, password: string, email: string) => {
-      if (isMock()) {
-        return Promise.resolve({ data: { token: 'mock-token', user: mockUser } });
-      }
-      return request<{ data: { token: string; user: { uuid: string; username: string; role: Role } } }>('/api/auth/register', {
+      }),
+    register: (username: string, password: string, email: string) =>
+      request<{ data: { token: string; user: { uuid: string; username: string; role: Role } } }>('/api/auth/register', {
         method: 'POST',
         body: JSON.stringify({ username, password, email }),
-      });
-    },
+      }),
     me: async () => {
       const res = await request<{ data: User }>('/api/auth/me');
       setIdentity(identityFrom(res.data));

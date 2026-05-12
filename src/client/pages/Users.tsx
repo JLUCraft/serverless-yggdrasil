@@ -85,7 +85,7 @@ export default function Users() {
               <div class="text-sm text-base-content/60">共 {members().length} 人</div>
             </div>
 
-            {/* Desktop table */}
+            {}
             <div class="hidden md:block mt-6 overflow-x-auto rounded border border-base-300">
               <table class="table w-full">
                 <thead>
@@ -140,7 +140,7 @@ export default function Users() {
               </table>
             </div>
 
-            {/* Mobile cards */}
+            {}
             <div class="md:hidden mt-4 space-y-3">
               <Show
                 when={members().length}

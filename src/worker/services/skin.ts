@@ -36,7 +36,7 @@ export async function saveTexture(
 ): Promise<Texture> {
   const hash = hashTexture(data);
 
-  // Deduplication: return existing texture if hash matches
+
   const existing = await getTextureByHash(db, hash);
   if (existing) {
     return existing;
@@ -44,7 +44,7 @@ export async function saveTexture(
 
   const uuid = generateUUID();
 
-  // Upload to R2
+
   await bucket.put(`textures/${hash}`, data, {
     httpMetadata: { contentType: type === 'skin' ? 'image/png' : 'image/png' },
   });
@@ -64,8 +64,8 @@ export async function saveTexture(
 
 export function parsePngDimensions(data: ArrayBuffer): { width: number; height: number } | null {
   const view = new DataView(data);
-  // PNG signature is 8 bytes, IHDR chunk starts at offset 16
-  // Width at bytes 16-19, height at bytes 20-23 (big-endian)
+
+
   if (data.byteLength < 24) return null;
   const width = view.getUint32(16, false);
   const height = view.getUint32(20, false);
@@ -86,14 +86,14 @@ export async function deleteTexture(
   const texture = await getTextureById(db, textureId);
   if (!texture) return false;
 
-  // Check if texture is still referenced by any profile
+
   const { results } = await db
     .prepare('SELECT id FROM player_profiles WHERE skin_texture_id = ? OR cape_texture_id = ?')
     .bind(textureId, textureId)
     .all<{ id: number }>();
 
   if ((results ?? []).length > 0) {
-    return false; // Cannot delete referenced texture
+    return false;
   }
 
   await db.prepare('DELETE FROM textures WHERE id = ?').bind(textureId).run();

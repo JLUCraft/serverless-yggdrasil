@@ -13,7 +13,7 @@ import { getClientIP } from '../utils/request';
 import { logAuthEvent } from '../services/auth-log';
 
 const app = new Hono<{ Bindings: Env; Variables: Variables }>();
-async function createToken(secret: string, user: { uuid: string; id: number; role: string }) {
+export async function createToken(secret: string, user: { uuid: string; id: number; role: string }) {
   return signJWT(
     {
       sub: user.uuid,
@@ -97,7 +97,7 @@ async function verifyPeerIdOwnership(
   return null;
 }
 
-// Step 1: Initiate registration — create verification request
+
 app.post('/register/initiate', async (c) => {
   const body = await c.req.json<{ username: string; email: string }>();
   if (!body.username || !body.email) {
@@ -135,7 +135,7 @@ app.post('/register/initiate', async (c) => {
   });
 });
 
-// Step 2: Complete registration after email verification
+
 app.post('/register/complete', async (c) => {
   const body = await c.req.json<{ username: string; password: string; email: string; verification_token: string }>();
   if (!body.username || !body.password || !body.email || !body.verification_token) {
@@ -239,12 +239,12 @@ app.post('/register/complete', async (c) => {
   });
 });
 
-// Legacy registration (kept for backward compatibility)
+
 app.post('/register', async () => {
   return error('Use /api/auth/register/initiate and /api/auth/register/complete', 410);
 });
 
-// Login
+
 app.post('/login', async (c) => {
   const body = await c.req.json<{ username: string; password: string }>();
   const ip = getClientIP(c);
@@ -295,7 +295,7 @@ app.post('/login', async (c) => {
   });
 });
 
-// Request email verification (send email to specified address)
+
 app.post('/verify-email/request', authMiddleware, async (c) => {
   const user = c.get('user');
   const body = await c.req.json<{ email: string }>();
@@ -327,7 +327,7 @@ app.post('/verify-email/request', authMiddleware, async (c) => {
   });
 });
 
-// Get current user
+
 app.get('/me', authMiddleware, async (c) => {
   const jwt = c.get('user');
   const db = c.env.DB;
@@ -353,7 +353,7 @@ app.get('/me', authMiddleware, async (c) => {
   });
 });
 
-// Update user info
+
 app.patch('/me', authMiddleware, async (c) => {
   const jwt = c.get('user');
   const body = await c.req.json<{
@@ -398,7 +398,7 @@ app.patch('/me', authMiddleware, async (c) => {
   return success({ updated: true });
 });
 
-// MUA PeerID binding — allows FollyLauncher to bind peer_id using MUA OAuth token
+
 app.post('/mua-peer-bind', async (c) => {
   const body = await c.req.json<{
     mua_access_token: string;
@@ -487,7 +487,7 @@ app.post('/mua-peer-bind', async (c) => {
   });
 });
 
-// Admin: Update user role (moved to /api/admin/users/:uuid/role — admin.ts)
+
 app.patch('/users/:uuid/role', authMiddleware, requireRole('admin'), async (c) => {
   const targetUUID = c.req.param('uuid');
   const body = await c.req.json<{ role: 'guest' | 'member' | 'admin' }>();

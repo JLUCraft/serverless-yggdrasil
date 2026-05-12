@@ -5,11 +5,11 @@
   "description": "Cloudflare Workers based Blessing Skin + MUA Yggdrasil skin station with hierarchical identity",
   "main": "src/worker/index.ts",
   "scripts": {
-    "proto:build": "bun scripts/build-proto.ts",
-    "build": "bun run build:client && bun run build:worker",
-    "build:client": "tsc --noEmit -p tsconfig.client.json && vite build",
+    "proto:build": "NODE_OPTIONS=--localstorage-file=.node-localstorage bun scripts/build-proto.ts",
+    "build": "bun run proto:build && bun run build:client && bun run build:worker",
+    "build:client": "tsc --noEmit -p tsconfig.client.json && bun --bun vite build",
     "build:worker": "tsc --noEmit -p tsconfig.worker.json",
-    "check": "bun run check:client && bun run check:worker",
+    "check": "bun run proto:build && bun run check:client && bun run check:worker",
     "check:client": "tsc --noEmit -p tsconfig.client.json",
     "check:worker": "tsc --noEmit -p tsconfig.worker.json",
     "dev": "wrangler dev",
@@ -22,22 +22,22 @@
     "@solidjs/router": "^0.16.1",
     "@noble/ed25519": "^3.1.0",
     "@noble/hashes": "^2.2.0",
-    "hono": "^4.12.15",
-    "skinview3d": "^3.4.1",
+    "hono": "^4.12.18",
+    "skinview3d": "^3.4.2",
     "solid-js": "^1.9.12",
     "three": "^0.184.0"
   },
   "devDependencies": {
     "@bufbuild/protoc-gen-es": "^2.12.0",
-    "@cloudflare/workers-types": "^4.20260426.1",
-    "@tailwindcss/vite": "^4.2.4",
-    "@types/node": "^25.6.0",
+    "@cloudflare/workers-types": "^4.20260511.1",
+    "@tailwindcss/vite": "^4.3.0",
+    "@types/node": "^25.6.2",
     "daisyui": "^5.5.19",
-    "tailwindcss": "^4.2.4",
+    "tailwindcss": "^4.3.0",
     "typescript": "^6.0.3",
-    "vite": "^8.0.10",
+    "vite": "^8.0.12",
     "vite-plugin-solid": "^2.11.12",
-    "wrangler": "^4.86.0"
+    "wrangler": "^4.90.0"
   },
   "packageManager": "bun@1.3.13"
 }

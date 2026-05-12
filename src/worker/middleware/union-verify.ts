@@ -8,7 +8,7 @@ import { error } from '../utils/response';
 async function fetchUnionPublicKey(unionEndpoint: string): Promise<string | null> {
   try {
     const root = joinEndpoint(unionEndpoint);
-    // Prefer structured /pubkey endpoint (JSON with public_key_pem).
+
     const structuredResp = await fetch(`${root}/pubkey`);
     if (structuredResp.ok) {
       const contentType = structuredResp.headers.get('content-type') ?? '';
@@ -18,7 +18,7 @@ async function fetchUnionPublicKey(unionEndpoint: string): Promise<string | null
       }
     }
 
-    // Legacy fallback: scrape HTML root for PEM block.
+
     const resp = await fetch(`${root}/`);
     if (!resp.ok) return null;
     const text = await resp.text();

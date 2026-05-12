@@ -1,4 +1,4 @@
-// === App Bindings ===
+
 
 export interface Env {
   DB: D1Database;
@@ -13,16 +13,16 @@ export interface Env {
   EMAIL_VERIFICATION_RECIPIENT: string;
   EMAIL_VERIFICATION_TOKEN_BYTES: string;
   EMAIL_VERIFICATION_TTL_SECONDS: string;
-  /** Comma-separated list of allowed CORS origins. Defaults to local development origins. */
+
   ALLOWED_ORIGINS?: string;
 }
 
-// === Identity Roles ===
+
 
 export type UserRole = 'guest' | 'member' | 'admin';
 export type UserStatus = 'active' | 'suspended' | 'banned';
 
-// === Database Models ===
+
 
 export interface User {
   id: number;
@@ -85,7 +85,7 @@ export interface EmailVerification {
   verified_at: number | null;
 }
 
-// === Yggdrasil API Types ===
+
 
 export interface YggdrasilAgent {
   name: string;
@@ -118,14 +118,6 @@ export interface YggdrasilProfile {
     value: string;
     signature?: string;
   }>;
-  /**
-   * Canonical club short-code (e.g. "JLUCraft").
-   *
-   * The database column `users.club` stores a single short
-   * identifier — there is no separate display-name field.
-   * MUA / Union extension profile endpoints expose this
-   * canonical code exclusively as `club_code`.
-   */
   club_code?: string | null;
 }
 
@@ -142,7 +134,7 @@ export interface YggdrasilTexturesProperty {
   }>;
 }
 
-// === API Response Types ===
+
 
 export interface ApiError {
   error: string;
@@ -156,18 +148,18 @@ export interface ApiSuccess<T> {
   data: T;
 }
 
-// === JWT Payload ===
+
 
 export interface JWTPayload {
-  sub: string;      // user uuid
-  uid: number;      // user id
+  sub: string;
+  uid: number;
   role: UserRole;
   iat: number;
   exp: number;
-  jti: string;      // token id
+  jti: string;
 }
 
-// === Union Protocol Types ===
+
 
 export interface UnionServer {
   code: string;
@@ -223,7 +215,7 @@ export interface UnionMemberUpdatePluginRequest {
   hash: string;
 }
 
-// === Hono Variables ===
+
 
 export type Variables = {
   user: JWTPayload;

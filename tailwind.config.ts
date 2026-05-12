@@ -1,4 +1,4 @@
-/** @type {import('tailwindcss').Config} */
+
 import siteConfig from './site.config.json';
 import daisyui from 'daisyui';
 

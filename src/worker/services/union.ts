@@ -99,7 +99,7 @@ function parseKeyBundle(keyValue: string): PrivateKeyBundle {
       return parsed;
     }
   } catch {
-    // Not JSON, treat as raw PEM private key
+
   }
   return { private_key: keyValue };
 }

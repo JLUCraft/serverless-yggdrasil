@@ -1,12 +1,3 @@
-/**
- * Cloudflare Email Worker handler.
- *
- * Processes incoming emails sent to the configured verification mailbox,
- * parsing tokens and marking email verifications as complete.
- *
- * This module is deliberately isolated from Hono route plumbing —
- * it is invoked directly by the Worker's `email()` export.
- */
 import type { D1Database } from '@cloudflare/workers-types';
 import type { Env } from '../types';
 import {
@@ -31,14 +22,14 @@ export async function handleIncomingEmail(
   const subject = message.headers.get('subject') ?? '';
   const policy = readPolicy(env);
 
-  // Read email body
+
   let body = '';
   if (message.raw) {
     const raw = await new Response(message.raw).text();
     body = raw;
   }
 
-  // Only process verification emails sent to the configured verification mailbox.
+
   if (to !== policy.recipient) {
     console.log(`Ignoring email to ${to}`);
     return;
@@ -50,7 +41,7 @@ export async function handleIncomingEmail(
     return;
   }
 
-  // Validate email domain
+
   if (!isAllowedDomain(parsed.email, siteConfig.allowedEmailDomains)) {
     console.log(`Email domain not allowed: ${parsed.email}`);
     return;
@@ -58,7 +49,7 @@ export async function handleIncomingEmail(
 
   const db: D1Database = env.DB;
 
-  // Find verification record
+
   const verification = await getEmailVerificationByToken(db, parsed.token);
   if (!verification || verification.status !== 'pending') {
     console.log(`Verification not found or already processed: ${parsed.token}`);
@@ -71,7 +62,7 @@ export async function handleIncomingEmail(
     return;
   }
 
-  // Check if token matches the email
+
   if (verification.email !== parsed.email) {
     console.log(`Email mismatch: expected ${verification.email}, got ${parsed.email}`);
     return;
@@ -79,7 +70,7 @@ export async function handleIncomingEmail(
 
   const domain = parsed.email.split('@')[1];
 
-  // Update user if linked
+
   if (verification.user_id) {
     const existing = await getUserByEmail(db, parsed.email);
     if (existing && existing.id !== verification.user_id) {
